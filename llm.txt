@@ -1,0 +1,58 @@
+# tRAGar
+
+A client-side Retrieval-Augmented Generation library for the browser. Compiles a C++23 core to WebAssembly and exposes a JavaScript/TypeScript surface for end-to-end RAG: chunk → embed → store → search → (optionally) rerank.
+
+## What it does
+
+- Ingest markdown text → chunk it → embed with transformers.js → store vectors locally in OPFS
+- Query with natural language → embed → SIMD cosine search → return ranked text chunks
+- All data stays in the browser. No server required after first load.
+
+## Three-line happy path
+
+```js
+import { TRAGar } from 'https://charly-vibes.github.io/tragar/v0.1.0/tragar.js';
+const rag = await TRAGar.create();
+await rag.ingest(markdownText, { source: 'docs/intro.md' });
+const hits = await rag.query('how do I get started?');
+```
+
+## Architecture
+
+- **JS API surface** — TypeScript-typed, async everywhere
+- **Embind glue** — C++ ↔ JS marshaling
+- **C++23 core** — chunking, quantization, indexing, search
+- **Platform bindings** — OPFS / IndexedDB / Worker shims
+
+## Five composable seams
+
+Each is replaceable with one config property:
+
+1. **Chunker** — default: markdown (CommonMark, Spanish-aware, 400-token target)
+2. **Embedder** — default: `Xenova/all-MiniLM-L6-v2` via transformers.js (384 dims)
+3. **Store** — default: OPFS with IndexedDB fallback
+4. **Index** — default: brute-force SIMD cosine (flat, up to ~50K chunks)
+5. **Reranker** — default: identity (none)
+
+## Source layout
+
+```
+src/core/        C++23 — chunker, quantizer, index
+src/platform/    OPFS, IndexedDB shims
+src/bind/        Embind glue
+js/              TypeScript public API and seam implementations
+bench/           Native + browser benchmarks
+test/            Catch2 unit tests, golden tests, Playwright smoke tests
+```
+
+## Key design decisions
+
+- WASM SIMD required (no scalar fallback) — perf budget unattainable without it
+- No Worker in v0.1 — COOP/COEP headers not available on GitHub Pages
+- int8 quantization — 4× storage reduction with <0.5% cosine error at D=384
+- Lazy embedder load — `create()` stays fast; embedder loads on first use
+- Append-only store — `compact()` rewrites; tombstones for soft delete
+
+## Full specification
+
+See SPEC.md in the repository root.

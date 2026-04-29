@@ -1,0 +1,16 @@
+[default]
+extend-ignore-identifiers-re = [
+    # Spanish words that typos may flag
+    "tragar",
+    "sinalefa",
+    "voseo",
+    "corpus",
+    "namespace",
+]
+
+[files]
+extend-exclude = [
+    "dist/",
+    "build/",
+    ".wai/",
+]

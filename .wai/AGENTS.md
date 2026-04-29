@@ -81,6 +81,14 @@ wai pipeline start <n> --topic=<t>  # Start a run; set WAI_PIPELINE_RUN=<id>
 wai pipeline next             # Advance to next step
 ```
 
+> **Ro5**: The Rule of 5 skill is installed. Run `/ro5` after key phase transitions — implement, research, design — for iterative quality review.
+
+## Ubiquitous Language
+
+If `.wai/resources/ubiquitous-language/README.md` exists, read it first as the
+navigation index, then open only the bounded-context files relevant to the task.
+Avoid loading every terminology file unless the work truly spans multiple contexts.
+
 ## Structure
 
 The `.wai/` directory organizes artifacts using the PARA method:

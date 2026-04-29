@@ -1,0 +1,7 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "embedded",
+  "dolt_database": "tRAG",
+  "project_id": "402a29de-815a-4ff4-9c85-d139918bf3cf"
+}
