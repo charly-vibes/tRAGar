@@ -64,6 +64,7 @@ The name combines *tragar* (Spanish: "to swallow") and **RAG**. The corpus gets 
 - **Index** — the structure searched at query time. v0.1 default is brute-force SIMD cosine.
 - **Reranker** — an optional second pass over top-K results that produces a reordered list. v0.1 default is `none`.
 - **Seam** — one of the five replaceable interfaces (chunker, embedder, store, index, reranker).
+- **Embind** — Emscripten's binding system for calling C++ functions from JavaScript. Used to marshal `std::generator<Hit>` to async iterators, `std::expected<T,E>` to Promise resolve/reject, and `std::span` to typed arrays.
 - **Hit** — a query result: chunk text, score, source, plus optional position metadata.
 - **Namespace** — the string key under which a corpus is stored, defaults to `"default"`.
 - **Schema version** — integer pinned in stored metadata; bumped when on-disk format changes.
@@ -98,7 +99,7 @@ The user touches layer 1 only. Layer 2 is generated code (Embind). Layer 3 is th
 **Query (`query(text, opts)`):**
 
 1. JS calls `query()` with a string and `{ k, filter? }`.
-2. C++ runs the same chunker on the query string; if multiple chunks emerge, only the first is used (queries are assumed short).
+2. C++ runs the same chunker on the query string; if multiple chunks emerge, only the first is used. Queries are assumed short: multi-chunk queries degrade retrieval quality because the index scores a single vector, not a composite. No warning is emitted for dropped query chunks.
 3. JS calls the embedder backend on the query text → float32 vector.
 4. C++ unit-normalizes and quantizes the query vector.
 5. C++ index runs SIMD cosine against the matrix, maintains a top-K min-heap.
@@ -193,9 +194,9 @@ The default chunker:
 2. **Splits at heading boundaries** (H1, H2, H3 by default). H4–H6 do not start a new chunk; they are kept as inline content of the parent.
 3. **Targets ~400 tokens per chunk**, where a token is approximated by the embedder's tokenizer if available, else by a `char_count / 4` heuristic.
 4. **Hard-caps at 800 tokens.** A long paragraph or code block that would exceed 800 tokens is split with a 50-token overlap.
-5. **Soft-floor at 50 tokens.** A heading-section shorter than 50 tokens is merged with its sibling (preferring the next sibling).
+5. **Soft-floor at 50 tokens.** A heading-section shorter than 50 tokens is merged with its sibling (preferring the next sibling). If there is neither a next nor a previous sibling (e.g. a single-section document), the chunk is emitted as-is regardless of token count.
 6. **Treats fenced code blocks atomically.** A code block is never split. If a single code block exceeds 800 tokens, it becomes its own oversized chunk and an `OversizeChunk` warning is emitted.
-7. **Treats list items atomically when possible.** A bullet or numbered list of 30 short items is one chunk; a list of long items is split per-item.
+7. **Treats list items atomically when possible.** A bullet or numbered list is kept as one chunk if its total token count is ≤ `maxTokens`; the 30-item threshold is a heuristic upper guard, not a hard limit. A list where individual items each exceed `maxTokens` is split one item per chunk.
 8. **Preserves line numbers** of the first character of each chunk in the source string.
 9. **Computes a SHA-256 hash** of `(source + chunk_index + chunk_text)` as the chunk's stable identity.
 
@@ -259,7 +260,7 @@ The embedder is loaded **lazily on first `ingest()` or `query()`**, not on `crea
 The embedder loader:
 
 1. Checks if `transformers.js` is already imported. If so, uses the existing module.
-2. Otherwise, dynamically imports `https://cdn.jsdelivr.net/npm/@xenova/transformers@2.x` (the URL is configurable via `embedders.transformers({ cdn: '...' })`).
+2. Otherwise, dynamically imports `https://cdn.jsdelivr.net/npm/@xenova/transformers@2.x` (the URL is configurable via `embedders.transformers({ cdn: '...' })`). For production deployments, pinning to an exact version (e.g. `@2.17.1`) and verifying with Subresource Integrity (SRI) is recommended to guard against CDN-side compromises.
 3. Calls `pipeline('feature-extraction', modelId, { quantized: true })`.
 4. Caches the pipeline on the embedder instance.
 
@@ -289,6 +290,8 @@ The embedder must reject the Promise with one of:
 
 Under the OPFS root, all tRAGar data lives at `tragar/{namespace}/`. For the default namespace `"default"`, that means `tragar/default/`.
 
+The `namespace` string MUST match `/^[a-zA-Z0-9_-]{1,64}$/`. `TRAGar.create()` MUST reject with `InvalidConfig` if the namespace fails this validation. This prevents path traversal and unexpected subdirectory creation within the OPFS sandbox.
+
 Files within a namespace directory:
 
 | File | Purpose | Format |
@@ -298,7 +301,7 @@ Files within a namespace directory:
 | `scales.bin` | Per-vector quantization scales | packed `float32`, length `N` |
 | `chunks.jsonl` | Chunk text and metadata | one JSON object per line |
 | `lookup.bin` | Byte offsets into `chunks.jsonl` | packed `uint64`, length `N` |
-| `tombstones.bin` | Soft-deleted ids | packed `uint32`, sparse |
+| `tombstones.bin` | Soft-deleted chunk positions | packed `uint32`; each value is the 0-indexed row position of a deleted entry in `vectors.bin`; only deleted rows are present (sparse) |
 
 ### 7.2 Append semantics
 
@@ -328,7 +331,7 @@ Files within a namespace directory:
 - A documented migration path that runs on `open()` if an older version is detected, or
 - An explicit user-driven `migrate()` call.
 
-A namespace whose schema version exceeds the library's supported version causes `open()` to reject with `SchemaTooNew`.
+A namespace whose schema version exceeds the library's supported version causes `open()` to reject with `SchemaTooNew`. If auto-migration is not available for a given version jump (i.e. the namespace's schema version is older than the library supports but no migration is registered for that version), `open()` rejects with `SchemaTooOld`.
 
 ### 7.5 IndexedDB fallback
 
@@ -346,7 +349,7 @@ The store assumes **single-writer per namespace**. Concurrent writes from multip
 - Use distinct namespaces per tab, or
 - Coordinate via `BroadcastChannel` at a higher level (out of scope for v0.1).
 
-Each individual write is atomic at the file level (OPFS guarantees this for `createSyncAccessHandle().write()` in a worker context, or for the equivalent atomic-rename pattern in the main thread).
+Each individual write is atomic at the file level. In v0.1 (no Web Worker), atomicity is achieved via the async OPFS API with an atomic-rename pattern: data is written to a `.tmp` file then renamed over the target. `createSyncAccessHandle()` is not used because it is only available inside a Web Worker, and v0.1 runs exclusively on the main thread (see §13.1).
 
 ---
 
@@ -391,7 +394,7 @@ type Filter = {
 };
 ```
 
-Filter evaluation runs in C++ over the chunk metadata sidecar; matching chunks proceed to scoring, non-matching are skipped.
+Filter evaluation is split by type: `string` and `string[]` source filters are evaluated in C++ over the chunk metadata sidecar. `RegExp` source filters cannot be marshalled to C++ via Embind and are therefore evaluated in the JS layer against the `Hit` array returned by C++ scoring. `meta` exact-match filters are evaluated in C++. Implementations MUST apply JS-side RegExp filtering after C++ scoring returns hits.
 
 ### 8.5 Configuration
 
@@ -415,12 +418,15 @@ The seam exists so v0.3's cross-encoder reranker can be added without an API bre
 
 Procedure for embedding a chunk's vector `v` (Float32Array, length `D`):
 
+0. **Pre-check:** If any component of `v` is `NaN` or `Inf`, reject with `EmbedderRuntimeError` before proceeding. Storing NaN vectors would silently poison all future cosine scores for that chunk.
 1. Compute L2 norm: `‖v‖ = sqrt(Σ vᵢ²)`.
 2. Normalize: `v' = v / ‖v‖`. Now `‖v'‖ = 1`.
 3. Find max absolute value: `m = max(|v'ᵢ|)`.
 4. Compute scale: `s = m / 127.0`.
 5. Quantize: `q[i] = round(v'[i] / s)`, clamped to `[-127, 127]`.
 6. Store `q` (int8, length D) and `s` (float32).
+
+When the L2 norm is zero (all-zero vector), `s = 0.0` and an all-zero int8 vector is stored. A `DegenerateVector` warning is emitted via `onWarn` and the chunk is **skipped** (not stored), because a zero vector contributes only zero scores and consumes storage without retrieval value.
 
 Dequantization (only for diagnostics; never done at query time):
 
@@ -437,6 +443,8 @@ cosine(a, b) ≈ dot(q_a, q_b) * s_a * s_b
 ```
 
 This holds because `a` and `b` are unit-normalized, so cosine = dot product, and the int8 dot product times the scales is an unbiased estimator of the true float32 dot product.
+
+**Accumulation width:** The dot product of two int8 vectors over `D=384` dimensions can reach ~6.2M (127 × 127 × 384), which overflows int8 and int16. The inner product MUST accumulate into int32. Implementations using WASM SIMD MUST use a widening pattern (e.g. `i16x8.extend_low_i8x16_s` + `i32x4.dot_i16x8_s`, or equivalent) to avoid silent overflow. Using naive int8 accumulation is incorrect.
 
 ### 10.3 Accuracy expectations
 
@@ -481,7 +489,10 @@ type TRAGarOptions = {
 
 `create()` is async because it opens the store and reads metadata, but it does **not** load the embedder. The embedder loads on first use.
 
-If the namespace already has data on disk and the stored `modelId` does not match the current embedder's `modelId`, `create()` rejects with `ModelMismatch` unless `opts.embedder` is omitted (in which case tRAGar uses the stored model id and loads the matching transformers.js model automatically).
+Model identity on open follows two explicit cases:
+
+- **Case A — explicit embedder provided:** If `opts.embedder` is provided and its `modelId` differs from the stored `modelId`, `create()` rejects with `ModelMismatch`.
+- **Case B — no explicit embedder:** If `opts.embedder` is omitted and the stored `modelId` is non-default, `create()` auto-loads the stored model via the transformers seam and resolves without error.
 
 ### 11.2 Instance methods
 
@@ -495,10 +506,15 @@ class TRAGar {
 
   // Ingestion
   ingest(text: string, meta?: DocumentMeta): Promise<IngestResult>;
-  ingestMany(docs: { text: string; meta?: DocumentMeta }[]): Promise<IngestResult>;
+  // ingestMany returns a settled array (like Promise.allSettled); each entry is either
+  // { status: 'fulfilled', value: IngestResult } or { status: 'rejected', reason: TRAGarError }
+  ingestMany(docs: { text: string; meta?: DocumentMeta }[]): Promise<IngestManyResult[]>;
 
   // Query
   query(text: string, opts?: QueryOptions): Promise<Hit[]>;
+  // queryStream: the underlying std::generator<Hit> is destroyed when the iterator is
+  // returned or thrown (via the iterator protocol's return() method). Abandoning the
+  // iterator with break or an exception inside for-await is safe and releases C++ resources.
   queryStream(text: string, opts?: QueryOptions): AsyncIterable<Hit>;
 
   // Maintenance
@@ -541,6 +557,7 @@ type Hit = {
   text: string;
   source: string;
   line: number;
+  tokenCount: number;                      // approximate token count, same as Chunk.tokenCount
   meta: Record<string, unknown>;
 };
 
@@ -554,10 +571,15 @@ type Stats = {
   schemaVersion: number;
 };
 
+type IngestManyResult =
+  | { status: 'fulfilled'; value: IngestResult }
+  | { status: 'rejected'; reason: TRAGarError };
+
 type Warning =
   | { kind: 'OversizeChunk'; source: string; line: number; tokenCount: number }
   | { kind: 'LongChunk'; source: string; line: number; truncatedAt: number }
   | { kind: 'QuantizationLossHigh'; source: string; line: number; loss: number }
+  | { kind: 'DegenerateVector'; source: string; line: number }
   | { kind: 'StoreFallback'; from: 'opfs'; to: 'indexeddb' };
 ```
 
@@ -573,7 +595,7 @@ const TRAGar = {
   },
   embedders: {
     transformers(modelId?: string, opts?: TransformersOpts): Embedder;
-    custom(fn: (batch: string[]) => Promise<Float32Array[]>, dim: number, modelId: string): Embedder;
+    custom(fn: (batch: string[]) => Promise<Float32Array[]>, dim: number, modelId: string, opts?: { silent?: boolean }): Embedder;
   },
   stores: {
     opfs(namespace?: string): Store;
@@ -645,6 +667,10 @@ The query path is fast enough on the main thread (<10 ms target) that a Worker w
 
 Every public method returns a Promise. Internally, "synchronous" C++ paths still return Promises so the API does not break when work moves into a Worker later.
 
+### 13.4 Single-instance write serialization
+
+Concurrent async calls on the same `TRAGar` instance are serialized internally. If two `ingest()` calls are made without awaiting the first, the instance queues them and processes them in order. This prevents stale-count reads and torn writes. Callers MUST NOT rely on write order being based on Promise resolution timing; order follows the call order only.
+
 ---
 
 ## 14. Performance budgets
@@ -659,6 +685,7 @@ These are explicit targets for v0.1. Failing any of them is a release blocker.
 | `query()` end-to-end | 10K chunks, dim=384, k=10 | < 50 ms | embedder + index + IO |
 | `query()` index portion only | 10K chunks, dim=384, k=10 | < 10 ms | SIMD cosine + heap |
 | WASM bundle size | gzipped | < 400 KB | excludes transformers.js |
+| `dist/tragar.bundle.js` | uncompressed | < 1 MB | JS + inlined base64 WASM |
 | First `query()` cold | embedder not loaded | < 5 s | dominated by model download |
 | Storage per chunk | dim=384 | < 1 KB amortized | int8 vector + chunk text + metadata |
 
@@ -681,7 +708,7 @@ Benchmarks live in `bench/` and run in CI. Regressions of more than 20% on any b
 - `BigInt` (universally available)
 - `Promise.allSettled` (universally available)
 - One of: `navigator.storage.getDirectory()` (OPFS) **or** `indexedDB`
-- `crypto.subtle.digest` for SHA-256 chunk hashing
+- `crypto.subtle.digest` for SHA-256 chunk identity hashing (hashing is performed in the JS layer using `crypto.subtle.digest('SHA-256', ...)` rather than the C++ sysroot SHA, to avoid WASM binary size overhead)
 
 ### 15.3 Graceful degradation
 
@@ -780,11 +807,13 @@ Playwright tests against the built `dist/`:
 
 ### 17.3 Golden retrieval test
 
-A 200-document Spanish-language corpus (public domain: selected works from Project Gutenberg en español) with 50 hand-written queries and expected top-1 sources. Regression in top-1 accuracy below 80% blocks releases.
+A 200-document Spanish-language corpus (public domain: selected works from Project Gutenberg en español) with 50 hand-written queries and expected top-1 sources. Regression in top-1 accuracy below 80% blocks releases. (80% is chosen conservatively given that `all-MiniLM-L6-v2` is English-trained and the test corpus is Spanish-majority; the threshold is expected to rise to ≥ 90% when `paraphrase-multilingual-MiniLM-L12-v2` becomes the default in v0.2.)
 
 ### 17.4 Determinism
 
 Given identical input and identical configuration, two ingests produce byte-identical store files. The chunker, quantizer, and index are all deterministic. The embedder's determinism is delegated to transformers.js and is best-effort.
+
+Browser smoke tests that assert exact score values MUST be avoided; use score-threshold assertions (e.g. `score > 0.7`) instead. Non-deterministic ONNX runtime behavior would make exact-value assertions flaky across browser versions.
 
 ---
 
@@ -801,7 +830,7 @@ No telemetry, no error reporting, no analytics. This is enforced by audit, not b
 
 ### 18.2 Custom embedder warning
 
-If the user configures `embedders.custom(fn, ...)` with a function that makes network calls (e.g. an OpenAI embeddings client), a one-time `console.warn` is emitted on first use noting that text is leaving the browser. The user can suppress this with `embedders.custom(fn, dim, modelId, { silent: true })`.
+If the user configures `embedders.custom(fn, dim, modelId)` with a function that makes network calls (e.g. an OpenAI embeddings client), a one-time `console.warn` is emitted on first use noting that text is leaving the browser. The user can suppress this with the optional fourth argument: `embedders.custom(fn, dim, modelId, { silent: true })`.
 
 ### 18.3 Storage isolation
 
@@ -831,9 +860,9 @@ tRAGar follows semantic versioning.
 - v0.x: breaking changes allowed at minor versions, signaled in CHANGELOG.
 - v1.0: stable API. Breaking changes only at major versions.
 
-### 19.2 Stable surfaces in v0.1
+### 19.2 Stable surfaces from v1.0
 
-These will not change without a major bump after v1.0:
+The following surfaces are targeted for stability at v1.0; during v0.x they may still change with minor-version notice. After v1.0, these will not change without a major bump:
 
 - The `TRAGar.create()` signature
 - The `Hit`, `Chunk`, `DocumentMeta` shapes
@@ -898,7 +927,7 @@ Default seams only. Markdown chunker, transformers.js embedder, OPFS store, flat
 
 ## 21. Open questions
 
-These are deliberately not resolved in this draft. They will be resolved before v0.1 is cut.
+These are deliberately not resolved in this draft. They will be resolved before v0.1 is cut. Each open question MUST be tracked as a beads issue before implementation starts.
 
 1. **Tokenizer for chunking.** Does the markdown chunker reuse the embedder's tokenizer (accurate, requires the embedder to be loaded) or its own approximation (fast, slightly off)? Current default: own approximation. Reconsider after measurements.
 2. **Embedder model id default.** `Xenova/all-MiniLM-L6-v2` vs `Xenova/paraphrase-multilingual-MiniLM-L12-v2`. The multilingual model is larger (~120 MB) but better for Spanish. v0.1 defaults to the English-only model with the multilingual one as a one-line opt-in; v0.2 may flip if dogfood usage shows the English model degrading on Spanish corpora.
