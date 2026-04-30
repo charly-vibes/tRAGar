@@ -588,11 +588,11 @@
       <div class="cfg-row-stack">
         <label for="cfg-embedder-model">Model</label>
         <select id="cfg-embedder-model">
-          <option value="hash" selected>Hash (no download, not semantic)</option>
-          <option value="minilm-l6">all-MiniLM-L6-v2 — 22 MB · English</option>
-          <option value="minilm-l12">all-MiniLM-L12-v2 — 33 MB · English</option>
-          <option value="mpnet">all-mpnet-base-v2 — 90 MB · English · best</option>
-          <option value="multilingual">paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 50 langs</option>
+          <option value="hash" selected>Hash — 0 MB · 384-dim · no download · not semantic</option>
+          <option value="minilm-l6">all-MiniLM-L6-v2 — 22 MB · 384-dim · English</option>
+          <option value="minilm-l12">all-MiniLM-L12-v2 — 33 MB · 384-dim · English</option>
+          <option value="mpnet">all-mpnet-base-v2 — 90 MB · 768-dim · English · best</option>
+          <option value="multilingual">paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 384-dim · 50 langs</option>
         </select>
         <span class="cfg-hint" id="cfg-embedder-hint" style="font-size:0.65rem;color:var(--muted);margin-top:2px">Fast 6-gram hash. Deterministic, no download, but not truly semantic — synonyms won't score well.</span>
       </div>
@@ -799,35 +799,35 @@
   // ── Embedder catalogue ───────────────────────────────────────────────
   const EMBEDDER_OPTIONS = {
     hash: {
-      label: "Hash (no download, not semantic)",
+      label: "Hash — 0 MB · 384-dim · not semantic",
       hint: "Fast 6-gram hash. Deterministic, no download, but not truly semantic — synonyms won't score well.",
       dim: 384,
       namespace: "playground",
       getConfig(TRAGar) { return TRAGar.embedders.custom(hashEmbed, 384, "playground-hash-v1"); },
     },
     "minilm-l6": {
-      label: "all-MiniLM-L6-v2 — 22 MB · English",
+      label: "all-MiniLM-L6-v2 — 22 MB · 384-dim · English",
       hint: "~22 MB one-time download. Fast, 384-dim. Good English semantic search.",
       dim: 384,
       namespace: "playground-minilm-l6",
       getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-MiniLM-L6-v2", 384); },
     },
     "minilm-l12": {
-      label: "all-MiniLM-L12-v2 — 33 MB · English",
+      label: "all-MiniLM-L12-v2 — 33 MB · 384-dim · English",
       hint: "~33 MB one-time download. Better quality than L6 at moderate cost.",
       dim: 384,
       namespace: "playground-minilm-l12",
       getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-MiniLM-L12-v2", 384); },
     },
     mpnet: {
-      label: "all-mpnet-base-v2 — 90 MB · English · best",
+      label: "all-mpnet-base-v2 — 90 MB · 768-dim · English · best",
       hint: "~90 MB one-time download. Highest quality English embedder in the catalogue.",
       dim: 768,
       namespace: "playground-mpnet",
       getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-mpnet-base-v2", 768); },
     },
     multilingual: {
-      label: "paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 50 languages",
+      label: "paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 384-dim · 50 languages",
       hint: "~117 MB one-time download. Works across 50+ languages including Spanish, French, German, Chinese, Arabic.",
       dim: 384,
       namespace: "playground-multilingual",
