@@ -1,0 +1,14 @@
+## 1. Implementation
+- [ ] 1.1 Implement tokenization step: collect all unique normalized types from input text
+- [ ] 1.2 Implement context collection: gather every sentence/line containing each type
+- [ ] 1.3 Implement chunk emission: one Chunk per type with bare word as `chunk.text`
+- [ ] 1.4 Implement mean pooling: embed each occurrence separately, average the vectors
+- [ ] 1.5 Implement max pooling alternative
+- [ ] 1.6 Add `normalize` option: lowercase + strip punctuation (default true)
+- [ ] 1.7 Add `minFrequency` option: drop types below threshold (default 1)
+- [ ] 1.8 Add `includeFrequency` option: attach count to chunk.meta (default true)
+- [ ] 1.9 Add `includeContexts` option: attach example sentences to chunk.meta (default false)
+- [ ] 1.10 Add `maxContexts` option: cap context sentences (default 3)
+- [ ] 1.11 Extend `Chunk.meta` type with `frequency?`, `contexts?`, `tier?` fields
+- [ ] 1.12 Write unit tests: normalize, minFrequency filtering, context collection
+- [ ] 1.13 Write integration test: ingest Waste Land excerpt → verify one chunk per unique word

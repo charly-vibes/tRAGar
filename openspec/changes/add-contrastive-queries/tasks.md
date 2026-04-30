@@ -1,0 +1,12 @@
+## 1. Implementation
+- [ ] 1.1 Add `toward?: string | string[] | { terms: string[]; weight: number }` to QueryOptions
+- [ ] 1.2 Add `awayFrom?: string | string[] | { terms: string[]; weight: number }` to QueryOptions
+- [ ] 1.3 Add `boundaryOf?: [string, string]` to QueryOptions
+- [ ] 1.4 Add `TermNotFound` to ErrorCode union
+- [ ] 1.5 Implement toward: q' = normalize(q + α * mean(toward_vectors)), default α = 0.5
+- [ ] 1.6 Implement awayFrom: q' = normalize(q - β * mean(awayFrom_vectors)), default β = 0.5
+- [ ] 1.7 Implement boundaryOf: q' = normalize(v_A + v_B), ignoring query string
+- [ ] 1.8 Support toward and awayFrom composing simultaneously
+- [ ] 1.9 Throw TermNotFound when any named term is not in the store
+- [ ] 1.10 Write unit tests: vector arithmetic for each option
+- [ ] 1.11 Write integration tests: toward pulls results closer; awayFrom pushes results away; boundaryOf finds midpoint tokens

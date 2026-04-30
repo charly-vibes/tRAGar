@@ -1,0 +1,12 @@
+## 1. Implementation
+- [ ] 1.1 Define `Projector` interface in TypeScript
+- [ ] 1.2 Implement `projectors.pca()` using `ml-pca`
+- [ ] 1.3 Implement `projectors.umap()` using `umap-js`
+- [ ] 1.4 Implement `projectors.identity()` no-op projector
+- [ ] 1.5 Implement `projectors.custom()` factory
+- [ ] 1.6 Extend `TRAGarOptions` with `projector?: Projector`
+- [ ] 1.7 Implement `TRAGar.project(id)` instance method
+- [ ] 1.8 Implement `TRAGar.projectAll()` instance method
+- [ ] 1.9 Implement `TRAGar.fitProjector()` with auto-fit on `create()`
+- [ ] 1.10 Write unit tests for each projector factory
+- [ ] 1.11 Write integration test: ingest → fitProjector → projectAll → verify 2D output
