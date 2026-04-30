@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>tRAGar — Examples</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #7c6af7;
+      --text: #e2e4ee;
+      --muted: #5a5d72;
+      --radius: 10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      gap: 2rem;
+    }
+    header { text-align: center; }
+    h1 { font-size: 2.2rem; font-weight: 700; letter-spacing: -0.03em; }
+    h1 span { color: var(--accent); }
+    p.tagline { color: var(--muted); margin-top: 0.5rem; font-size: 1.05rem; }
+    .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.2rem;
+      justify-content: center;
+      max-width: 760px;
+      width: 100%;
+    }
+    a.card {
+      flex: 1 1 200px;
+      max-width: 230px;
+      text-decoration: none;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.4rem 1.2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: border-color 0.15s, transform 0.1s;
+    }
+    a.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card-icon { font-size: 1.6rem; }
+    .card-title { font-weight: 600; color: var(--text); font-size: 1rem; }
+    .card-desc { font-size: 0.82rem; color: var(--muted); line-height: 1.45; }
+    footer { color: var(--muted); font-size: 0.8rem; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>t<span>RAG</span>ar</h1>
+    <p class="tagline">Client-side RAG in the browser — WebAssembly + transformers.js</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="examples/tracer-bullet/index.html">
+      <div class="card-icon">⚡</div>
+      <div class="card-title">Tracer Bullet</div>
+      <div class="card-desc">Minimal demo: create → ingest → query with a hash embedder. No model downloads.</div>
+    </a>
+    <a class="card" href="examples/opfs/index.html">
+      <div class="card-icon">💾</div>
+      <div class="card-title">OPFS Persistence</div>
+      <div class="card-desc">Persist chunks across page reloads using Origin Private File System (IndexedDB fallback).</div>
+    </a>
+    <a class="card" href="examples/playground/index.html">
+      <div class="card-icon">🛝</div>
+      <div class="card-title">Playground</div>
+      <div class="card-desc">Interactive SPA: paste text, ingest it, then run semantic queries with live results.</div>
+    </a>
+  </div>
+
+  <footer>
+    <a href="https://github.com/charly/tRAGar">GitHub</a>
+  </footer>
+</body>
+</html>

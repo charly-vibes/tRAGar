@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>tRAGar Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0f1117;
+      --surface: #1a1d27;
+      --border:  #2e3148;
+      --accent:  #6e7aff;
+      --green:   #4ade80;
+      --red:     #f87171;
+      --amber:   #fbbf24;
+      --text:    #e2e8f0;
+      --muted:   #64748b;
+      --mono:    "JetBrains Mono", "Fira Code", monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    /* ── Header ─────────────────────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    header h1 { font-size: 1rem; letter-spacing: 0.04em; color: var(--accent); }
+    header .meta { color: var(--muted); font-size: 0.75rem; display: flex; gap: 1rem; align-items: center; }
+    .badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-weight: 600;
+      background: var(--border);
+      color: var(--muted);
+    }
+    .badge.ok  { background: #14532d; color: var(--green); }
+    .badge.err { background: #7f1d1d; color: var(--red); }
+    .badge.busy { background: #1e1b4b; color: var(--accent); }
+
+    /* ── Main layout ─────────────────────────────────────────────── */
+    main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      overflow: hidden;
+    }
+
+    @media (max-width: 800px) {
+      main { grid-template-columns: 1fr; }
+    }
+
+    /* ── Panel ───────────────────────────────────────────────────── */
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .panel:last-child { border-right: none; }
+
+    .panel-header {
+      padding: 0.6rem 1rem;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* ── Form elements ───────────────────────────────────────────── */
+    label { display: block; font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 0.45rem 0.6rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus,
+    textarea:focus { border-color: var(--accent); }
+
+    button {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.9rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      background: var(--surface);
+      color: var(--text);
+      transition: background 0.12s, border-color 0.12s;
+      letter-spacing: 0.04em;
+    }
+    button:hover { background: var(--border); border-color: var(--accent); }
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    button.primary:hover { background: #5a65e8; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Ingest panel ────────────────────────────────────────────── */
+    #ingest-panel {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow-y: auto;
+    }
+
+    #doc-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-height: 260px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .doc-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 0.5rem;
+    }
+
+    .doc-item .doc-meta { flex: 1; overflow: hidden; }
+    .doc-item .doc-source { color: var(--accent); font-size: 0.75rem; margin-bottom: 2px; }
+    .doc-item .doc-preview { color: var(--muted); font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .doc-item .doc-count { font-size: 0.7rem; color: var(--green); white-space: nowrap; }
+
+    .doc-item button.del {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      color: var(--red);
+      border-color: transparent;
+      background: transparent;
+    }
+    .doc-item button.del:hover { background: #7f1d1d33; border-color: var(--red); }
+
+    /* ── Stats bar ───────────────────────────────────────────────── */
+    .stats-bar {
+      font-size: 0.75rem;
+      color: var(--muted);
+      padding: 0.4rem 0;
+    }
+    .stats-bar span { color: var(--text); }
+
+    /* ── Query panel ─────────────────────────────────────────────── */
+    #query-panel {
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      overflow-y: auto;
+    }
+
+    .query-row {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-end;
+    }
+    .query-row input { flex: 1; }
+
+    #k-select {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    #k-select input[type="range"] { width: 80px; accent-color: var(--accent); }
+    #k-val { color: var(--text); width: 1.5ch; }
+
+    /* ── Results ─────────────────────────────────────────────────── */
+    #results {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+    }
+
+    .hit {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.6rem 0.75rem;
+      display: grid;
+      grid-template-columns: 4ch 1fr;
+      gap: 0.25rem 0.75rem;
+    }
+
+    .hit .rank { color: var(--muted); font-size: 0.7rem; }
+    .hit .score {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--green);
+    }
+    .hit .source { font-size: 0.75rem; color: var(--accent); }
+    .hit .chunk { color: var(--text); font-size: 0.75rem; line-height: 1.5; word-break: break-word; }
+    .hit.dim .chunk { color: var(--muted); }
+
+    /* ── Log panel ───────────────────────────────────────────────── */
+    #log-wrap {
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      max-height: 160px;
+      overflow-y: auto;
+      padding: 0.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .log-line { font-size: 0.7rem; line-height: 1.6; }
+    .log-line.ok  { color: var(--green); }
+    .log-line.err { color: var(--red); }
+    .log-line.warn { color: var(--amber); }
+    .log-line.dim  { color: var(--muted); }
+    .log-line.info { color: var(--text); }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>tRAGar playground</h1>
+  <div class="meta">
+    <span id="db-status" class="badge">initializing…</span>
+    <span id="store-badge" class="badge"></span>
+  </div>
+</header>
+
+<main>
+  <!-- ── Left: Ingest ─────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span>Ingest</span>
+      <button id="btn-reset" style="font-size:0.65rem;padding:2px 8px;color:var(--amber);border-color:transparent;background:transparent">reset storage</button>
+    </div>
+    <div id="ingest-panel">
+      <div>
+        <label for="doc-source">Source label</label>
+        <input type="text" id="doc-source" placeholder="e.g. README.md" value="doc.md">
+      </div>
+      <div>
+        <label for="doc-text">Document text (split on blank lines → chunks)</label>
+        <textarea id="doc-text" rows="6" placeholder="Paste text here…"></textarea>
+      </div>
+      <button class="primary" id="btn-ingest">Ingest →</button>
+
+      <div class="stats-bar">
+        chunks: <span id="stat-count">—</span> &nbsp;|&nbsp;
+        dim: <span id="stat-dim">—</span> &nbsp;|&nbsp;
+        model: <span id="stat-model">—</span>
+      </div>
+
+      <div class="panel-header" style="margin: 0 -1rem; padding: 0.4rem 1rem; border-top: 1px solid var(--border);">
+        <span>Ingested documents</span>
+      </div>
+      <div id="doc-list">
+        <span style="color:var(--muted);font-size:0.75rem">No documents yet.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right: Query ─────────────────────────────────────────── -->
+  <div class="panel">
+    <div class="panel-header">Query</div>
+    <div id="query-panel">
+      <div class="query-row">
+        <input type="text" id="query-input" placeholder="Ask a question…">
+        <button class="primary" id="btn-query">Search</button>
+      </div>
+      <div id="k-select">
+        k =
+        <input type="range" id="k-slider" min="1" max="20" value="5">
+        <span id="k-val">5</span>
+      </div>
+      <div id="results">
+        <span style="color:var(--muted);font-size:0.75rem">Results will appear here.</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- ── Log ──────────────────────────────────────────────────────── -->
+<div id="log-wrap"></div>
+
+<script type="module">
+  // ── Deterministic embedder (no network, no model download) ──────────
+  const DIM = 384;
+
+  function simpleHash(s) {
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = (Math.imul(33, h) ^ s.charCodeAt(i)) | 0;
+    return h >>> 0;
+  }
+
+  async function hashEmbed(batch) {
+    return batch.map((text) => {
+      const v = new Float32Array(DIM);
+      // Spread signal across multiple buckets for better separation
+      for (let w = 0; w < text.length; w++) {
+        const word = text.slice(w, w + 6);
+        const idx = simpleHash(word) % DIM;
+        v[idx] += 1;
+      }
+      // L2 normalise
+      let norm = 0;
+      for (let i = 0; i < DIM; i++) norm += v[i] * v[i];
+      norm = Math.sqrt(norm);
+      if (norm > 0) for (let i = 0; i < DIM; i++) v[i] /= norm;
+      return v;
+    });
+  }
+
+  // ── Logging ──────────────────────────────────────────────────────────
+  const logWrap = document.getElementById("log-wrap");
+  function log(msg, cls = "info") {
+    const line = document.createElement("div");
+    line.className = "log-line " + cls;
+    line.textContent = new Date().toLocaleTimeString("en-US", { hour12: false }) + "  " + msg;
+    logWrap.appendChild(line);
+    logWrap.scrollTop = logWrap.scrollHeight;
+  }
+
+  // ── Status badges ────────────────────────────────────────────────────
+  const dbStatus  = document.getElementById("db-status");
+  const storeBadge = document.getElementById("store-badge");
+
+  function setStatus(text, cls) {
+    dbStatus.textContent = text;
+    dbStatus.className = "badge " + cls;
+  }
+
+  // ── Document list state ──────────────────────────────────────────────
+  // Map<source, { text, chunks }> — last ingest per source wins
+  const docs = new Map();
+
+  function renderDocList() {
+    const el = document.getElementById("doc-list");
+    if (docs.size === 0) {
+      el.innerHTML = '<span style="color:var(--muted);font-size:0.75rem">No documents yet.</span>';
+      return;
+    }
+    el.innerHTML = "";
+    for (const [source, d] of docs) {
+      const item = document.createElement("div");
+      item.className = "doc-item";
+      item.innerHTML = `
+        <div class="doc-meta">
+          <div class="doc-source">${source}</div>
+          <div class="doc-preview">${d.text.slice(0, 80).replace(/\n/g, " ")}${d.text.length > 80 ? "…" : ""}</div>
+        </div>
+        <div class="doc-count">${d.chunks} chunks</div>
+        <button class="del" data-src="${source}">✕</button>`;
+      el.appendChild(item);
+    }
+    el.querySelectorAll("button.del").forEach(btn => {
+      btn.addEventListener("click", () => {
+        // We can't selectively delete from the OPFS store without a full reset,
+        // so we just hide from the UI list and warn.
+        docs.delete(btn.dataset.src);
+        renderDocList();
+        log(`Removed "${btn.dataset.src}" from view. To remove from storage, use Reset.`, "warn");
+      });
+    });
+  }
+
+  // ── Stats bar ────────────────────────────────────────────────────────
+  function updateStats(db) {
+    db.stats().then(s => {
+      document.getElementById("stat-count").textContent = s.count;
+      document.getElementById("stat-dim").textContent   = s.dim;
+      document.getElementById("stat-model").textContent = db.modelId;
+    });
+  }
+
+  // ── k slider ─────────────────────────────────────────────────────────
+  const kSlider = document.getElementById("k-slider");
+  const kVal    = document.getElementById("k-val");
+  kSlider.addEventListener("input", () => { kVal.textContent = kSlider.value; });
+
+  // ── Main ─────────────────────────────────────────────────────────────
+  let db = null;
+
+  async function init() {
+    setStatus("loading…", "busy");
+    try {
+      const { TRAGar } = await import("../../dist/js/tragar.js");
+
+      db = await TRAGar.create({
+        store: TRAGar.stores.opfs({
+          onWarn(code, message) {
+            log(`⚠ [${code}] ${message}`, "warn");
+          },
+        }),
+        embedder: TRAGar.embedders.custom(hashEmbed, DIM, "playground-hash-v1"),
+        namespace: "playground",
+      });
+
+      storeBadge.textContent = db.storeMode;
+      storeBadge.className = "badge ok";
+
+      const s = await db.stats();
+      if (s.count > 0) {
+        setStatus(`ready — ${s.count} chunks loaded`, "ok");
+        log(`Loaded ${s.count} persisted chunks from ${db.storeMode}`, "ok");
+      } else {
+        setStatus("ready", "ok");
+        log(`Instance created  storeMode:${db.storeMode}  namespace:${db.namespace}`, "ok");
+      }
+      updateStats(db);
+    } catch (err) {
+      setStatus("error", "err");
+      log("Init failed: " + err.message, "err");
+    }
+  }
+
+  // ── Ingest ───────────────────────────────────────────────────────────
+  document.getElementById("btn-ingest").addEventListener("click", async () => {
+    if (!db) return;
+    const source = document.getElementById("doc-source").value.trim() || "untitled";
+    const text   = document.getElementById("doc-text").value.trim();
+    if (!text) { log("Nothing to ingest — text is empty.", "warn"); return; }
+
+    const btn = document.getElementById("btn-ingest");
+    btn.disabled = true;
+    setStatus("ingesting…", "busy");
+    try {
+      await db.ingest({ source, text });
+      const s = await db.stats();
+      docs.set(source, { text, chunks: db.count - (docs.get(source)?.chunks ?? 0) });
+      // Recalculate per-source chunks from total (approximate — recount on ingest)
+      // Simple approach: track running count
+      docs.set(source, { text, chunks: "?" });
+      renderDocList();
+      updateStats(db);
+      setStatus(`ready — ${s.count} chunks`, "ok");
+      log(`✓ ingest()  source:${source}  total chunks:${s.count}`, "ok");
+      document.getElementById("doc-text").value = "";
+    } catch (err) {
+      setStatus("error", "err");
+      log("Ingest failed: " + err.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  // ── Query ────────────────────────────────────────────────────────────
+  async function runQuery() {
+    if (!db) return;
+    const q = document.getElementById("query-input").value.trim();
+    if (!q) return;
+    const k = parseInt(kSlider.value);
+
+    const btn = document.getElementById("btn-query");
+    btn.disabled = true;
+    setStatus("querying…", "busy");
+    const resultsEl = document.getElementById("results");
+    resultsEl.innerHTML = "";
+
+    try {
+      const hits = await db.query(q, { k });
+      const s = await db.stats();
+      setStatus(`ready — ${s.count} chunks`, "ok");
+
+      if (hits.length === 0) {
+        resultsEl.innerHTML = '<span style="color:var(--muted);font-size:0.75rem">No results.</span>';
+        log(`query()  "${q}"  → 0 hits`, "dim");
+        return;
+      }
+
+      const top = hits[0].score;
+      hits.forEach((h, i) => {
+        const rel = top > 0 ? h.score / top : 0;
+        const div = document.createElement("div");
+        div.className = "hit" + (rel < 0.3 ? " dim" : "");
+        div.innerHTML = `
+          <div class="rank">#${i + 1}</div>
+          <div class="score">${h.score.toFixed(4)}</div>
+          <div class="source">${h.source}</div>
+          <div class="chunk">${h.text}</div>`;
+        resultsEl.appendChild(div);
+      });
+
+      log(`✓ query()  "${q}"  k=${k}  top=${hits[0].score.toFixed(4)}`, "ok");
+    } catch (err) {
+      setStatus("error", "err");
+      log("Query failed: " + err.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  document.getElementById("btn-query").addEventListener("click", runQuery);
+  document.getElementById("query-input").addEventListener("keydown", e => {
+    if (e.key === "Enter") runQuery();
+  });
+
+  // ── Reset ────────────────────────────────────────────────────────────
+  document.getElementById("btn-reset").addEventListener("click", async () => {
+    if (!confirm("Delete all persisted chunks? This cannot be undone.")) return;
+    if (db) { try { await db.close(); } catch {} db = null; }
+
+    const NAMESPACE = "playground";
+    setStatus("resetting…", "busy");
+    try {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const tragar = await root.getDirectoryHandle("tragar", { create: false });
+        await tragar.removeEntry(NAMESPACE, { recursive: true });
+        log("✓ Removed OPFS tragar/" + NAMESPACE, "ok");
+      } catch {
+        log("  (OPFS entry not found — skipped)", "dim");
+      }
+      await new Promise((resolve, reject) => {
+        const req = indexedDB.deleteDatabase("tragar." + NAMESPACE);
+        req.onsuccess = resolve;
+        req.onerror = () => reject(req.error);
+        req.onblocked = resolve;
+      });
+      log("✓ Deleted IndexedDB database tragar." + NAMESPACE, "ok");
+
+      docs.clear();
+      renderDocList();
+      document.getElementById("results").innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Results will appear here.</span>';
+
+      await init();
+    } catch (err) {
+      setStatus("error", "err");
+      log("Reset failed: " + err.message, "err");
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>

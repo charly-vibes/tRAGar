@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>tRAGar — OPFS persistence demo</title>
+  <style>
+    body { font-family: monospace; max-width: 70ch; margin: 2rem auto; padding: 0 1rem; }
+    pre  { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    .ok  { color: green; }
+    .err { color: red; }
+    .warn { color: darkorange; }
+    button {
+      font-family: monospace;
+      margin-top: 1rem;
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>tRAGar — OPFS persistence demo</h1>
+  <p>Slice 6: <code>create({ store: TRAGar.stores.opfs() })</code> persists chunks across
+  page reloads using the Origin Private File System (or IndexedDB as a fallback).</p>
+  <p><strong>How to test:</strong> reload the page — the second load skips ingestion and
+  reuses the chunks written by the first.</p>
+  <pre id="output">Running…</pre>
+  <div>
+    <button id="btn-reload">Reload page</button>
+    <button id="btn-reset">Reset storage</button>
+  </div>
+
+  <script type="module">
+    const NAMESPACE = "demo-opfs";
+
+    // ── Deterministic embedder fixture (same as tracer-bullet) ───────────────
+    const DIM = 8;
+
+    function simpleHash(s) {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+      return h;
+    }
+
+    async function identityEmbed(batch) {
+      return batch.map((text) => {
+        const v = new Float32Array(DIM);
+        v[Math.abs(simpleHash(text)) % DIM] = 1.0;
+        return v;
+      });
+    }
+
+    // ── Corpus to ingest on a fresh start ────────────────────────────────────
+    const CORPUS = [
+      {
+        source: "intro.md",
+        text: "tRAGar is a client-side RAG library for the browser.\n\nIt compiles a C++23 core to WebAssembly.",
+      },
+      {
+        source: "usage.md",
+        text: "Call create() to open an instance.\n\nCall ingest() to add documents.\n\nCall query() to retrieve chunks.",
+      },
+      {
+        source: "design.md",
+        text: "All vectors live in the browser.\n\nNo data crosses any network boundary the user did not opt into.",
+      },
+    ];
+
+    async function run() {
+      const out = document.getElementById("output");
+      const log = (...args) => { out.textContent += args.join(" ") + "\n"; };
+      const warn = (...args) => {
+        const span = document.createElement("span");
+        span.className = "warn";
+        span.textContent = args.join(" ") + "\n";
+        out.appendChild(span);
+      };
+
+      try {
+        const { TRAGar } = await import("../../dist/js/tragar.js");
+
+        const warnings = [];
+        const db = await TRAGar.create({
+          store: TRAGar.stores.opfs({
+            onWarn(code, message) {
+              warnings.push({ code, message });
+            },
+          }),
+          embedder: TRAGar.embedders.custom(identityEmbed, DIM, "demo-hash-v1"),
+          namespace: NAMESPACE,
+        });
+
+        if (warnings.length) {
+          for (const w of warnings) warn(`⚠ warn [${w.code}] ${w.message}`);
+        }
+
+        log("✓ create()  storeMode:", db.storeMode, " namespace:", db.namespace);
+        log("  modelId:", db.modelId, " dim:", db.dim);
+
+        const statsBefore = await db.stats();
+        const isFirstLoad = statsBefore.count === 0;
+
+        if (isFirstLoad) {
+          log("\n→ No persisted chunks found — ingesting corpus…");
+          for (const doc of CORPUS) {
+            await db.ingest(doc);
+            log(`✓ ingest()  source: ${doc.source}  count now: ${db.count}`);
+          }
+        } else {
+          log(`\n→ Loaded ${statsBefore.count} persisted chunks — skipping ingest.`);
+          log("  (Reload again to confirm. Click \"Reset storage\" to start fresh.)");
+        }
+
+        const hits = await db.query("retrieve documents from the browser", { k: 3 });
+        log("\n✓ query()  top hits:");
+        for (const h of hits) {
+          log(`  [${h.score.toFixed(3)}] ${h.source}  "${h.text.slice(0, 60)}…"`);
+        }
+
+        const statsAfter = await db.stats();
+        log("\n✓ stats()  count:", statsAfter.count, " dim:", statsAfter.dim);
+
+        await db.close();
+        log("✓ close()  success");
+
+        out.classList.add("ok");
+        log(isFirstLoad
+          ? "\nFirst load complete. Reload the page to see persistence in action."
+          : "\nPersistence confirmed — chunks survived the page reload.");
+      } catch (err) {
+        out.classList.add("err");
+        out.textContent += "\n\nERROR: " + err.message;
+      }
+    }
+
+    // ── Reset: delete OPFS directory + IndexedDB database for the namespace ──
+    async function resetStorage() {
+      const out = document.getElementById("output");
+      out.textContent = "Resetting storage…\n";
+      out.className = "";
+      try {
+        // OPFS
+        try {
+          const root = await navigator.storage.getDirectory();
+          const tragar = await root.getDirectoryHandle("tragar", { create: false });
+          await tragar.removeEntry(NAMESPACE, { recursive: true });
+          out.textContent += "✓ Removed OPFS tragar/" + NAMESPACE + "\n";
+        } catch {
+          out.textContent += "  (OPFS entry not found or not supported — skipped)\n";
+        }
+
+        // IndexedDB
+        await new Promise((resolve, reject) => {
+          const req = indexedDB.deleteDatabase("tragar." + NAMESPACE);
+          req.onsuccess = resolve;
+          req.onerror = () => reject(req.error);
+          req.onblocked = resolve; // proceed anyway
+        });
+        out.textContent += "✓ Deleted IndexedDB database tragar." + NAMESPACE + "\n";
+        out.textContent += "\nStorage cleared. Reload the page to start fresh.";
+        out.className = "ok";
+      } catch (err) {
+        out.className = "err";
+        out.textContent += "\nReset failed: " + err.message;
+      }
+    }
+
+    document.getElementById("btn-reload").addEventListener("click", () => location.reload());
+    document.getElementById("btn-reset").addEventListener("click", resetStorage);
+
+    run();
+  </script>
+</body>
+</html>

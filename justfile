@@ -68,6 +68,10 @@ test-native-direct:
         -I tests/native \
         -o /tmp/tragar_test_bootstrap && /tmp/tragar_test_bootstrap
 
+# Serve project root over HTTP for manual browser testing (port 3456)
+serve port="3456": build-js
+    python3 -m http.server {{port}}
+
 # Clean build artifacts
 clean:
     rm -rf build dist
