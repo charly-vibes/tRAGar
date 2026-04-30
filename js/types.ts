@@ -130,6 +130,14 @@ export interface TRAGarInstance {
   query(text: string, opts?: QueryOptions): Promise<Hit[]>;
 
   /**
+   * Stream the top-k hits as an async iterator, yielding in descending score order.
+   * Safe to abandon with break or an exception — resources are released when the
+   * iterator protocol's return() method is called.
+   * Throws TRAGarError("InstanceClosed") on first iteration if closed.
+   */
+  queryStream(text: string, opts?: QueryOptions): AsyncIterable<Hit>;
+
+  /**
    * Return a summary of the current corpus state.
    * Rejects with TRAGarError("InstanceClosed") if closed.
    */

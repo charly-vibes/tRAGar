@@ -173,6 +173,32 @@ class TRAGarMemoryInstance implements TRAGarInstance {
     return scored.slice(0, k);
   }
 
+  async *queryStream(text: string, opts?: QueryOptions): AsyncGenerator<Hit> {
+    this.#assertOpen();
+    const embedder = this.#requireEmbedder();
+
+    if (this.#chunks.length === 0) return;
+
+    const k = opts?.k ?? 10;
+    const [qvec] = await embedder.embed([text]);
+    const query = new Float32Array(qvec);
+    l2Normalize(query);
+
+    const scored = this.#chunks.map((c) => ({
+      chunkId: c.id,
+      text: c.text,
+      source: c.source,
+      score: dotProduct(query, c.vector),
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+    const hits = scored.slice(0, k);
+
+    for (const hit of hits) {
+      yield hit;
+    }
+  }
+
   async stats(): Promise<Stats> {
     this.#assertOpen();
     return {
