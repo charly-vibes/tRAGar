@@ -27,7 +27,7 @@
       font-size: 13px;
       min-height: 100vh;
       display: grid;
-      grid-template-rows: auto 1fr;
+      grid-template-rows: auto 1fr auto;
     }
 
     /* ── Header ─────────────────────────────────────────────────── */
@@ -87,13 +87,42 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-shrink: 0;
     }
+
+    /* ── Tabs ────────────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .tab-btn:hover { color: var(--text); background: transparent; }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .tab-content { display: none; flex: 1; overflow-y: auto; }
+    .tab-content.active { display: flex; flex-direction: column; }
 
     /* ── Form elements ───────────────────────────────────────────── */
     label { display: block; font-size: 0.7rem; color: var(--muted); margin-bottom: 4px; }
 
     input[type="text"],
-    textarea {
+    textarea,
+    select {
       width: 100%;
       background: var(--bg);
       border: 1px solid var(--border);
@@ -107,7 +136,24 @@
       transition: border-color 0.15s;
     }
     input[type="text"]:focus,
-    textarea:focus { border-color: var(--accent); }
+    textarea:focus,
+    select:focus { border-color: var(--accent); }
+
+    select { resize: none; cursor: pointer; }
+    select option { background: var(--surface); }
+
+    input[type="number"] {
+      width: 80px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 0.35rem 0.5rem;
+      outline: none;
+    }
+    input[type="number"]:focus { border-color: var(--accent); }
 
     button {
       font-family: var(--mono);
@@ -132,7 +178,7 @@
     button:disabled { opacity: 0.4; cursor: not-allowed; }
 
     /* ── Ingest panel ────────────────────────────────────────────── */
-    #ingest-panel {
+    #ingest-tab-content {
       padding: 1rem;
       display: flex;
       flex-direction: column;
@@ -182,13 +228,83 @@
     }
     .stats-bar span { color: var(--text); }
 
-    /* ── Query panel ─────────────────────────────────────────────── */
-    #query-panel {
+    /* ── Config tab ──────────────────────────────────────────────── */
+    #config-tab-content {
       padding: 1rem;
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: 1.25rem;
       overflow-y: auto;
+    }
+
+    .cfg-section-title {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 0.6rem;
+      padding-bottom: 0.3rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cfg-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.6rem;
+    }
+    .cfg-row label {
+      margin-bottom: 0;
+      flex: 1;
+      font-size: 0.75rem;
+      color: var(--text);
+    }
+    .cfg-row .cfg-hint {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .cfg-row-stack { display: flex; flex-direction: column; gap: 4px; margin-bottom: 0.6rem; }
+    .cfg-row-stack label { font-size: 0.75rem; color: var(--text); }
+
+    .cfg-range-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .cfg-range-wrap input[type="range"] { width: 100px; accent-color: var(--accent); }
+    .cfg-range-val { font-size: 0.75rem; color: var(--text); width: 3.5ch; text-align: right; }
+
+    #preview-chunks {
+      margin-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .preview-chunk {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.4rem 0.6rem;
+      font-size: 0.72rem;
+      color: var(--text);
+      line-height: 1.5;
+    }
+    .preview-chunk-num {
+      font-size: 0.62rem;
+      color: var(--muted);
+      margin-bottom: 2px;
+    }
+
+    /* ── Query tab ───────────────────────────────────────────────── */
+    #query-tab-content {
+      padding: 1rem;
+      gap: 0.75rem;
     }
 
     .query-row {
@@ -213,7 +329,6 @@
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      overflow-y: auto;
     }
 
     .hit {
@@ -224,7 +339,11 @@
       display: grid;
       grid-template-columns: 4ch 1fr;
       gap: 0.25rem 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.12s;
     }
+    .hit:hover { border-color: var(--accent); }
+    .hit.expanded { border-color: var(--accent); }
 
     .hit .rank { color: var(--muted); font-size: 0.7rem; }
     .hit .score {
@@ -235,6 +354,162 @@
     .hit .source { font-size: 0.75rem; color: var(--accent); }
     .hit .chunk { color: var(--text); font-size: 0.75rem; line-height: 1.5; word-break: break-word; }
     .hit.dim .chunk { color: var(--muted); }
+
+    /* embedding chart inside a hit */
+    .embed-chart {
+      grid-column: 1 / -1;
+      margin-top: 0.5rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.5rem;
+      display: none;
+    }
+    .embed-chart.visible { display: block; }
+    .embed-chart-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .embed-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 1px;
+      height: 48px;
+    }
+    .embed-bar {
+      flex: 1;
+      background: var(--accent);
+      opacity: 0.7;
+      min-height: 1px;
+      border-radius: 1px 1px 0 0;
+    }
+
+    /* ── Chunks tab ──────────────────────────────────────────────── */
+    #chunks-tab-content {
+      padding: 0.75rem 1rem;
+      gap: 0.5rem;
+    }
+
+    .chunk-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.5rem 0.75rem;
+      cursor: pointer;
+      transition: border-color 0.12s;
+    }
+    .chunk-item:hover { border-color: var(--accent); }
+    .chunk-item.expanded { border-color: var(--accent); }
+
+    .chunk-item .chunk-source {
+      font-size: 0.65rem;
+      color: var(--accent);
+      margin-bottom: 3px;
+    }
+    .chunk-item .chunk-idx {
+      font-size: 0.65rem;
+      color: var(--muted);
+      float: right;
+    }
+    .chunk-item .chunk-text {
+      font-size: 0.75rem;
+      color: var(--text);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    .chunk-item .chunk-embed { display: none; margin-top: 0.5rem; border-top: 1px solid var(--border); padding-top: 0.5rem; }
+    .chunk-item .chunk-embed.visible { display: block; }
+
+    /* ── Histogram tab ───────────────────────────────────────────── */
+    #histogram-tab-content {
+      padding: 0.75rem 1rem;
+      gap: 0.75rem;
+    }
+
+    .hist-empty { color: var(--muted); font-size: 0.75rem; }
+
+    .hist-bars {
+      display: flex;
+      align-items: flex-end;
+      gap: 2px;
+      height: 80px;
+    }
+
+    .hist-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+    .hist-bar {
+      width: 100%;
+      background: var(--accent);
+      opacity: 0.75;
+      border-radius: 2px 2px 0 0;
+      min-height: 1px;
+    }
+    .hist-tick {
+      font-size: 0.6rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .hist-meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      gap: 1.5rem;
+    }
+    .hist-meta span { color: var(--text); }
+
+    /* ── Help tab ────────────────────────────────────────────────── */
+    #help-tab-content {
+      padding: 1rem;
+      gap: 0;
+      overflow-y: auto;
+    }
+
+    .help-section {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 1rem;
+      margin-bottom: 1rem;
+    }
+    .help-section:last-child { border-bottom: none; }
+
+    .help-h { font-size: 0.8rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem; }
+    .help-p { font-size: 0.75rem; color: var(--muted); line-height: 1.7; margin-bottom: 0.5rem; }
+    .help-p:last-child { margin-bottom: 0; }
+    .help-p strong { color: var(--text); }
+    .help-p code {
+      font-family: var(--mono);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      padding: 0 3px;
+      font-size: 0.72rem;
+      color: var(--green);
+    }
+
+    .help-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.5rem;
+      font-size: 0.72rem;
+    }
+    .help-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 3px 6px 3px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .help-table td {
+      padding: 4px 6px 4px 0;
+      color: var(--text);
+      vertical-align: top;
+      border-bottom: 1px solid #1e2133;
+    }
+    .help-table td:first-child { color: var(--accent); white-space: nowrap; }
 
     /* ── Log panel ───────────────────────────────────────────────── */
     #log-wrap {
@@ -267,19 +542,21 @@
 </header>
 
 <main>
-  <!-- ── Left: Ingest ─────────────────────────────────────────── -->
+  <!-- ── Left: Ingest + Config ────────────────────────────────── -->
   <div class="panel">
-    <div class="panel-header">
-      <span>Ingest</span>
-      <button id="btn-reset" style="font-size:0.65rem;padding:2px 8px;color:var(--amber);border-color:transparent;background:transparent">reset storage</button>
+    <div class="tabs" id="left-tabs">
+      <button class="tab-btn active" data-tab="ingest" data-group="left">Ingest</button>
+      <button class="tab-btn" data-tab="config" data-group="left">Config</button>
     </div>
-    <div id="ingest-panel">
+
+    <!-- Ingest tab -->
+    <div id="ingest-tab-content" class="tab-content active">
       <div>
         <label for="doc-source">Source label</label>
         <input type="text" id="doc-source" placeholder="e.g. README.md" value="doc.md">
       </div>
       <div>
-        <label for="doc-text">Document text (split on blank lines → chunks)</label>
+        <label for="doc-text">Document text <span id="chunk-strategy-hint" style="color:var(--muted)">(split on blank lines → chunks)</span></label>
         <textarea id="doc-text" rows="6" placeholder="Paste text here…"></textarea>
       </div>
       <div style="display:flex;gap:0.5rem">
@@ -296,17 +573,94 @@
 
       <div class="panel-header" style="margin: 0 -1rem; padding: 0.4rem 1rem; border-top: 1px solid var(--border);">
         <span>Ingested documents</span>
+        <button id="btn-reset" style="font-size:0.65rem;padding:2px 8px;color:var(--amber);border-color:transparent;background:transparent">reset storage</button>
       </div>
       <div id="doc-list">
         <span style="color:var(--muted);font-size:0.75rem">No documents yet.</span>
       </div>
     </div>
+
+    <!-- Config tab -->
+    <div id="config-tab-content" class="tab-content">
+      <!-- Chunking -->
+      <div class="cfg-section-title">Chunking</div>
+
+      <div class="cfg-row-stack">
+        <label for="cfg-chunk-strategy">Strategy</label>
+        <select id="cfg-chunk-strategy">
+          <option value="blank-line" selected>Blank-line (paragraph)</option>
+          <option value="sentence">Sentence</option>
+          <option value="fixed">Fixed size (chars)</option>
+        </select>
+        <span class="cfg-hint" id="cfg-strategy-hint" style="font-size:0.65rem;color:var(--muted);margin-top:2px">Split on one or more blank lines. Natural for prose and markdown.</span>
+      </div>
+
+      <div class="cfg-row" id="cfg-fixed-size-row" style="display:none">
+        <span>
+          <label>Chars per chunk</label>
+          <div class="cfg-hint">Window size for fixed chunking</div>
+        </span>
+        <input type="number" id="cfg-fixed-size" value="400" min="50" max="4000" step="50">
+      </div>
+
+      <div class="cfg-row">
+        <span>
+          <label>Min chunk length</label>
+          <div class="cfg-hint">Filter out chunks shorter than this</div>
+        </span>
+        <input type="number" id="cfg-min-len" value="20" min="1" max="500">
+      </div>
+
+      <!-- Preview -->
+      <div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+          <div class="cfg-section-title" style="margin-bottom:0">Chunk preview</div>
+          <button id="btn-preview" style="font-size:0.65rem;padding:2px 10px">Preview current text</button>
+        </div>
+        <div id="preview-chunks">
+          <span style="color:var(--muted);font-size:0.72rem">Paste text in the Ingest tab, then click preview.</span>
+        </div>
+      </div>
+
+      <!-- Display -->
+      <div class="cfg-section-title" style="margin-top:0.25rem">Display</div>
+
+      <div class="cfg-row">
+        <span>
+          <label>Score dim threshold</label>
+          <div class="cfg-hint">Dim results below X% of top score</div>
+        </span>
+        <div class="cfg-range-wrap">
+          <input type="range" id="cfg-dim-threshold" min="0" max="100" value="30">
+          <span class="cfg-range-val" id="cfg-dim-val">30%</span>
+        </div>
+      </div>
+
+      <!-- Info: read-only settings -->
+      <div class="cfg-section-title" style="margin-top:0.25rem">Instance (read-only)</div>
+      <div style="font-size:0.72rem;color:var(--muted);line-height:2">
+        namespace: <span id="cfg-namespace" style="color:var(--text)">playground</span><br>
+        store: <span id="cfg-store" style="color:var(--text)">—</span><br>
+        embedder: <span id="cfg-embedder" style="color:var(--text)">playground-hash-v1</span><br>
+        dim: <span id="cfg-dim" style="color:var(--text)">384</span>
+      </div>
+      <div style="font-size:0.65rem;color:var(--muted);margin-top:0.25rem">
+        To change namespace or store, use <em>reset storage</em> in the Ingest tab.
+      </div>
+    </div>
   </div>
 
-  <!-- ── Right: Query ─────────────────────────────────────────── -->
+  <!-- ── Right: Results + Chunks + Histogram + Help ───────────── -->
   <div class="panel">
-    <div class="panel-header">Query</div>
-    <div id="query-panel">
+    <div class="tabs" id="right-tabs">
+      <button class="tab-btn active" data-tab="query" data-group="right">Results</button>
+      <button class="tab-btn" data-tab="chunks" data-group="right">Chunks</button>
+      <button class="tab-btn" data-tab="histogram" data-group="right">Histogram</button>
+      <button class="tab-btn" data-tab="help" data-group="right">Help</button>
+    </div>
+
+    <!-- Results tab -->
+    <div id="query-tab-content" class="tab-content active">
       <div class="query-row">
         <input type="text" id="query-input" placeholder="Ask a question…">
         <button class="primary" id="btn-query">Search</button>
@@ -319,6 +673,98 @@
       <div id="results">
         <span style="color:var(--muted);font-size:0.75rem">Results will appear here.</span>
       </div>
+    </div>
+
+    <!-- Chunks tab -->
+    <div id="chunks-tab-content" class="tab-content">
+      <div id="chunk-list">
+        <span class="hist-empty">No chunks yet. Ingest some text first.</span>
+      </div>
+    </div>
+
+    <!-- Histogram tab -->
+    <div id="histogram-tab-content" class="tab-content">
+      <div id="histogram-wrap">
+        <span class="hist-empty">Run a query first, then switch here to see the score distribution.</span>
+      </div>
+    </div>
+
+    <!-- Help tab -->
+    <div id="help-tab-content" class="tab-content">
+
+      <div class="help-section">
+        <div class="help-h">Chunks</div>
+        <p class="help-p">
+          Before indexing, each document is split into <strong>chunks</strong> — smaller pieces of text that can be matched independently. Smaller chunks give more precise results; larger chunks preserve more context.
+        </p>
+        <table class="help-table">
+          <tr><th>Strategy</th><th>How it splits</th><th>Best for</th></tr>
+          <tr><td>Blank-line</td><td>One or more empty lines</td><td>Prose, markdown, docs</td></tr>
+          <tr><td>Sentence</td><td>Sentence-ending punctuation</td><td>Dense text, articles</td></tr>
+          <tr><td>Fixed size</td><td>Every N characters</td><td>Code, logs, structured data</td></tr>
+        </table>
+        <p class="help-p" style="margin-top:0.5rem">
+          Configure the strategy in the <strong>Config</strong> tab. Use <em>Preview current text</em> to see how your document would be split before ingesting.
+        </p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-h">Embeddings</div>
+        <p class="help-p">
+          Each chunk is converted into a <strong>vector</strong> — an array of numbers (here, 384 dimensions). Similar texts produce similar vectors. This encoding captures meaning, not just keywords.
+        </p>
+        <p class="help-p">
+          The playground uses a <strong>hash embedder</strong>: fast and deterministic, but not truly semantic. It counts 6-character n-gram hashes, which captures surface patterns but not synonyms or paraphrases. A real model (e.g. <code>all-MiniLM-L6-v2</code>) produces much better recall.
+        </p>
+        <p class="help-p">
+          Click any result or chunk to expand its <strong>embedding bar chart</strong> — the top-64 active dimensions, showing which features the embedder fired on.
+        </p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-h">Cosine similarity (score)</div>
+        <p class="help-p">
+          Retrieval ranks chunks by the <strong>cosine similarity</strong> between the query vector and each chunk vector. The score is between −1 and 1; higher is more similar.
+        </p>
+        <p class="help-p">
+          Scores near <strong>1.0</strong> mean near-identical vectors. Scores near <strong>0.0</strong> mean orthogonal (unrelated). Negative scores are rare with the hash embedder because all values are non-negative.
+        </p>
+        <p class="help-p">
+          The <em>Score dim threshold</em> in Config dims results that score less than X% of the top hit — useful for filtering out low-relevance chunks without hard-coding a cutoff.
+        </p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-h">k (top-k)</div>
+        <p class="help-p">
+          The <strong>k</strong> slider in the Results tab controls how many results to return. Larger k = higher recall (more chunks returned), but may include lower-relevance hits.
+        </p>
+        <p class="help-p">
+          The <strong>Histogram</strong> tab shows the full score distribution across <em>all</em> chunks — not just top-k — which helps you choose a good k value and understand how well-separated the relevant chunks are.
+        </p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-h">Storage (OPFS / IndexedDB)</div>
+        <p class="help-p">
+          tRAGar persists chunks to <strong>Origin Private File System (OPFS)</strong> — a fast, sandboxed, browser-native file store. Chunks survive page reloads within the same origin.
+        </p>
+        <p class="help-p">
+          If OPFS is unavailable (older browser or HTTP context), the library automatically falls back to <strong>IndexedDB</strong> and emits a <code>StoreFallback</code> warning shown in the log.
+        </p>
+        <p class="help-p">
+          The store <strong>namespace</strong> (here: <code>playground</code>) isolates data. Two pages with different namespaces don't share chunks. Use <em>reset storage</em> to wipe the current namespace.
+        </p>
+      </div>
+
+      <div class="help-section">
+        <div class="help-h">Keyboard shortcuts</div>
+        <table class="help-table">
+          <tr><th>Key</th><th>Action</th></tr>
+          <tr><td>Enter</td><td>Run query (when query input focused)</td></tr>
+        </table>
+      </div>
+
     </div>
   </div>
 </main>
@@ -339,19 +785,56 @@
   async function hashEmbed(batch) {
     return batch.map((text) => {
       const v = new Float32Array(DIM);
-      // Spread signal across multiple buckets for better separation
       for (let w = 0; w < text.length; w++) {
         const word = text.slice(w, w + 6);
         const idx = simpleHash(word) % DIM;
         v[idx] += 1;
       }
-      // L2 normalise
       let norm = 0;
       for (let i = 0; i < DIM; i++) norm += v[i] * v[i];
       norm = Math.sqrt(norm);
       if (norm > 0) for (let i = 0; i < DIM; i++) v[i] /= norm;
       return v;
     });
+  }
+
+  // Return top-N active dimensions as { idx, val }[] for charting
+  function topDims(vec, n = 64) {
+    const pairs = Array.from(vec).map((v, i) => ({ i, v }));
+    pairs.sort((a, b) => b.v - a.v);
+    return pairs.slice(0, n);
+  }
+
+  // ── Config state ─────────────────────────────────────────────────────
+  const cfg = {
+    chunkStrategy: "blank-line",
+    fixedChunkSize: 400,
+    minChunkLen: 20,
+    scoreDimThreshold: 0.3,
+  };
+
+  // Split text using the current config strategy
+  function chunkText(text) {
+    let chunks;
+    if (cfg.chunkStrategy === "sentence") {
+      // Split on sentence boundaries, keeping punctuation
+      chunks = text
+        .replace(/([.!?])\s+/g, "$1\n")
+        .split("\n")
+        .map(s => s.trim())
+        .filter(Boolean);
+    } else if (cfg.chunkStrategy === "fixed") {
+      chunks = [];
+      const size = cfg.fixedChunkSize;
+      for (let i = 0; i < text.length; i += size) {
+        const chunk = text.slice(i, i + size).trim();
+        if (chunk) chunks.push(chunk);
+      }
+    } else {
+      // blank-line (default) — matches tRAGar's internal chunker
+      chunks = text.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+    }
+    return chunks.filter(c => c.length >= cfg.minChunkLen);
   }
 
   // ── Logging ──────────────────────────────────────────────────────────
@@ -374,8 +857,11 @@
   }
 
   // ── Document list state ──────────────────────────────────────────────
-  // Map<source, { text, chunks }> — last ingest per source wins
-  const docs = new Map();
+  const docs = new Map();  // source → { text, chunks }
+
+  // Client-side chunk registry for the Chunks tab
+  // Array of { source, text, globalIdx }
+  const allChunks = [];
 
   function renderDocList() {
     const el = document.getElementById("doc-list");
@@ -398,12 +884,76 @@
     }
     el.querySelectorAll("button.del").forEach(btn => {
       btn.addEventListener("click", () => {
-        // We can't selectively delete from the OPFS store without a full reset,
-        // so we just hide from the UI list and warn.
         docs.delete(btn.dataset.src);
         renderDocList();
         log(`Removed "${btn.dataset.src}" from view. To remove from storage, use Reset.`, "warn");
       });
+    });
+  }
+
+  // ── Embedding bar chart renderer ─────────────────────────────────────
+  function buildEmbedChart(text, container, label = "") {
+    container.innerHTML = "";
+
+    if (label) {
+      const lbl = document.createElement("div");
+      lbl.className = "embed-chart-label";
+      lbl.textContent = label;
+      container.appendChild(lbl);
+    }
+
+    hashEmbed([text]).then(([vec]) => {
+      const dims = topDims(vec, 64);
+      const max = dims[0]?.v ?? 1;
+
+      const bars = document.createElement("div");
+      bars.className = "embed-bars";
+      for (const { v } of dims) {
+        const bar = document.createElement("div");
+        bar.className = "embed-bar";
+        bar.style.height = Math.max(1, Math.round((v / max) * 48)) + "px";
+        bar.title = v.toFixed(4);
+        bars.appendChild(bar);
+      }
+      container.appendChild(bars);
+
+      const note = document.createElement("div");
+      note.style.cssText = "font-size:0.6rem;color:var(--muted);margin-top:3px";
+      note.textContent = `top-64 active dims of ${DIM}  (hash embedder)`;
+      container.appendChild(note);
+    });
+  }
+
+  // ── Chunks tab ───────────────────────────────────────────────────────
+  function renderChunkList() {
+    const el = document.getElementById("chunk-list");
+    if (allChunks.length === 0) {
+      el.innerHTML = '<span class="hist-empty">No chunks yet. Ingest some text first.</span>';
+      return;
+    }
+    el.innerHTML = "";
+    allChunks.forEach((c, idx) => {
+      const item = document.createElement("div");
+      item.className = "chunk-item";
+      item.innerHTML = `
+        <div>
+          <span class="chunk-source">${c.source}</span>
+          <span class="chunk-idx">#${idx}</span>
+        </div>
+        <div class="chunk-text">${c.text}</div>
+        <div class="chunk-embed"></div>`;
+      const embedEl = item.querySelector(".chunk-embed");
+      item.addEventListener("click", () => {
+        const isOpen = item.classList.toggle("expanded");
+        if (isOpen) {
+          embedEl.classList.add("visible");
+          buildEmbedChart(c.text, embedEl, "embedding vector");
+        } else {
+          embedEl.classList.remove("visible");
+          embedEl.innerHTML = "";
+        }
+      });
+      el.appendChild(item);
     });
   }
 
@@ -413,13 +963,172 @@
       document.getElementById("stat-count").textContent = s.count;
       document.getElementById("stat-dim").textContent   = s.dim;
       document.getElementById("stat-model").textContent = db.modelId;
+      document.getElementById("cfg-dim").textContent    = s.dim;
+      document.getElementById("cfg-store").textContent  = db.storeMode;
     });
+  }
+
+  // ── Score histogram ───────────────────────────────────────────────────
+  async function renderHistogram(db, q) {
+    const wrap = document.getElementById("histogram-wrap");
+    wrap.innerHTML = '<span class="hist-empty">Computing…</span>';
+
+    const s = await db.stats();
+    if (s.count === 0) { wrap.innerHTML = '<span class="hist-empty">No chunks ingested.</span>'; return; }
+
+    const allHits = await db.query(q, { k: s.count });
+    if (allHits.length === 0) { wrap.innerHTML = '<span class="hist-empty">No results.</span>'; return; }
+
+    const scores = allHits.map(h => h.score);
+    const min = Math.min(...scores);
+    const max = Math.max(...scores);
+    const range = max - min || 1;
+
+    const BINS = 20;
+    const binCounts = new Array(BINS).fill(0);
+    for (const s of scores) {
+      const b = Math.min(BINS - 1, Math.floor(((s - min) / range) * BINS));
+      binCounts[b]++;
+    }
+    const maxCount = Math.max(...binCounts);
+
+    wrap.innerHTML = "";
+
+    const meta = document.createElement("div");
+    meta.className = "hist-meta";
+    meta.innerHTML = `
+      query: <span>"${q}"</span> &nbsp;
+      n: <span>${scores.length}</span> &nbsp;
+      min: <span>${min.toFixed(4)}</span> &nbsp;
+      max: <span>${max.toFixed(4)}</span> &nbsp;
+      mean: <span>${(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(4)}</span>`;
+    wrap.appendChild(meta);
+
+    const bars = document.createElement("div");
+    bars.className = "hist-bars";
+
+    for (let b = 0; b < BINS; b++) {
+      const col = document.createElement("div");
+      col.className = "hist-col";
+
+      const bar = document.createElement("div");
+      bar.className = "hist-bar";
+      bar.style.height = Math.max(1, Math.round((binCounts[b] / maxCount) * 80)) + "px";
+      bar.title = `${binCounts[b]} chunks`;
+
+      const tick = document.createElement("div");
+      tick.className = "hist-tick";
+      if (b === 0 || b === BINS - 1) {
+        tick.textContent = (min + (b / BINS) * range).toFixed(2);
+      }
+
+      col.appendChild(bar);
+      col.appendChild(tick);
+      bars.appendChild(col);
+    }
+    wrap.appendChild(bars);
+
+    const note = document.createElement("div");
+    note.style.cssText = "font-size:0.65rem;color:var(--muted)";
+    note.textContent = `${BINS} bins — cosine similarity distribution across all ${scores.length} chunks`;
+    wrap.appendChild(note);
   }
 
   // ── k slider ─────────────────────────────────────────────────────────
   const kSlider = document.getElementById("k-slider");
   const kVal    = document.getElementById("k-val");
   kSlider.addEventListener("input", () => { kVal.textContent = kSlider.value; });
+
+  // ── Tabs (two independent groups) ────────────────────────────────────
+  function setupTabs(groupId) {
+    document.getElementById(groupId).querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.getElementById(groupId).querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        // Hide all tab contents belonging to this group
+        document.querySelectorAll(`[data-group="${btn.dataset.group}"]`).forEach(b => {
+          const content = document.getElementById(b.dataset.tab + "-tab-content");
+          if (content) content.classList.remove("active");
+        });
+        const target = document.getElementById(btn.dataset.tab + "-tab-content");
+        if (target) target.classList.add("active");
+      });
+    });
+  }
+
+  setupTabs("left-tabs");
+  setupTabs("right-tabs");
+
+  // ── Config controls ───────────────────────────────────────────────────
+  const strategyHints = {
+    "blank-line": "Split on one or more blank lines. Natural for prose and markdown.",
+    "sentence":   "Split on . ! ? boundaries. One sentence per chunk.",
+    "fixed":      "Split every N characters. Good for code, logs, or uniform text.",
+  };
+
+  const strategyHintEl = document.getElementById("cfg-strategy-hint");
+  const chunkHintEl    = document.getElementById("chunk-strategy-hint");
+  const fixedSizeRow   = document.getElementById("cfg-fixed-size-row");
+
+  document.getElementById("cfg-chunk-strategy").addEventListener("change", e => {
+    cfg.chunkStrategy = e.target.value;
+    strategyHintEl.textContent = strategyHints[cfg.chunkStrategy];
+    fixedSizeRow.style.display = cfg.chunkStrategy === "fixed" ? "flex" : "none";
+    chunkHintEl.textContent =
+      cfg.chunkStrategy === "blank-line" ? "(split on blank lines → chunks)" :
+      cfg.chunkStrategy === "sentence"   ? "(split on sentences → chunks)" :
+      `(split every ${cfg.fixedChunkSize} chars → chunks)`;
+  });
+
+  document.getElementById("cfg-fixed-size").addEventListener("input", e => {
+    cfg.fixedChunkSize = parseInt(e.target.value) || 400;
+    if (cfg.chunkStrategy === "fixed") {
+      chunkHintEl.textContent = `(split every ${cfg.fixedChunkSize} chars → chunks)`;
+    }
+  });
+
+  document.getElementById("cfg-min-len").addEventListener("input", e => {
+    cfg.minChunkLen = parseInt(e.target.value) || 1;
+  });
+
+  const dimThreshold = document.getElementById("cfg-dim-threshold");
+  const dimVal       = document.getElementById("cfg-dim-val");
+  dimThreshold.addEventListener("input", () => {
+    cfg.scoreDimThreshold = parseInt(dimThreshold.value) / 100;
+    dimVal.textContent = dimThreshold.value + "%";
+  });
+
+  // ── Chunk preview ─────────────────────────────────────────────────────
+  document.getElementById("btn-preview").addEventListener("click", () => {
+    const text = document.getElementById("doc-text").value.trim();
+    const wrap = document.getElementById("preview-chunks");
+    if (!text) {
+      wrap.innerHTML = '<span style="color:var(--muted);font-size:0.72rem">Paste text in the Ingest tab first.</span>';
+      return;
+    }
+    const chunks = chunkText(text);
+    if (chunks.length === 0) {
+      wrap.innerHTML = '<span style="color:var(--muted);font-size:0.72rem">No chunks matched the current settings.</span>';
+      return;
+    }
+    wrap.innerHTML = "";
+    const summary = document.createElement("div");
+    summary.style.cssText = "font-size:0.65rem;color:var(--muted);margin-bottom:0.5rem";
+    summary.textContent = `${chunks.length} chunk${chunks.length !== 1 ? "s" : ""} · strategy: ${cfg.chunkStrategy} · min-len: ${cfg.minChunkLen}`;
+    wrap.appendChild(summary);
+    chunks.forEach((c, i) => {
+      const item = document.createElement("div");
+      item.className = "preview-chunk";
+      const num = document.createElement("div");
+      num.className = "preview-chunk-num";
+      num.textContent = `chunk ${i + 1} · ${c.length} chars`;
+      item.appendChild(num);
+      const txt = document.createElement("div");
+      txt.textContent = c;
+      item.appendChild(txt);
+      wrap.appendChild(item);
+    });
+  });
 
   // ── Main ─────────────────────────────────────────────────────────────
   let db = null;
@@ -441,6 +1150,7 @@
 
       storeBadge.textContent = db.storeMode;
       storeBadge.className = "badge ok";
+      document.getElementById("cfg-store").textContent = db.storeMode;
 
       const s = await db.stats();
       if (s.count > 0) {
@@ -470,14 +1180,17 @@
     try {
       await db.ingest({ source, text });
       const s = await db.stats();
-      docs.set(source, { text, chunks: db.count - (docs.get(source)?.chunks ?? 0) });
-      // Recalculate per-source chunks from total (approximate — recount on ingest)
-      // Simple approach: track running count
-      docs.set(source, { text, chunks: "?" });
+
+      // Track chunks client-side for the Chunks tab using current strategy
+      const paragraphs = chunkText(text);
+      for (const p of paragraphs) allChunks.push({ source, text: p });
+      renderChunkList();
+
+      docs.set(source, { text, chunks: paragraphs.length });
       renderDocList();
       updateStats(db);
       setStatus(`ready — ${s.count} chunks`, "ok");
-      log(`✓ ingest()  source:${source}  total chunks:${s.count}`, "ok");
+      log(`✓ ingest()  source:${source}  +${paragraphs.length} chunks  total:${s.count}`, "ok");
       document.getElementById("doc-text").value = "";
     } catch (err) {
       setStatus("error", "err");
@@ -488,11 +1201,14 @@
   });
 
   // ── Query ────────────────────────────────────────────────────────────
+  let lastQuery = "";
+
   async function runQuery() {
     if (!db) return;
     const q = document.getElementById("query-input").value.trim();
     if (!q) return;
     const k = parseInt(kSlider.value);
+    lastQuery = q;
 
     const btn = document.getElementById("btn-query");
     btn.disabled = true;
@@ -515,16 +1231,36 @@
       hits.forEach((h, i) => {
         const rel = top > 0 ? h.score / top : 0;
         const div = document.createElement("div");
-        div.className = "hit" + (rel < 0.3 ? " dim" : "");
+        div.className = "hit" + (rel < cfg.scoreDimThreshold ? " dim" : "");
+
+        const embedChart = document.createElement("div");
+        embedChart.className = "embed-chart";
+
         div.innerHTML = `
           <div class="rank">#${i + 1}</div>
           <div class="score">${h.score.toFixed(4)}</div>
           <div class="source">${h.source}</div>
           <div class="chunk">${h.text}</div>`;
+        div.appendChild(embedChart);
+
+        div.addEventListener("click", () => {
+          const isOpen = div.classList.toggle("expanded");
+          if (isOpen) {
+            embedChart.classList.add("visible");
+            buildEmbedChart(h.text, embedChart, `embedding  ·  score ${h.score.toFixed(4)}`);
+          } else {
+            embedChart.classList.remove("visible");
+            embedChart.innerHTML = "";
+          }
+        });
+
         resultsEl.appendChild(div);
       });
 
       log(`✓ query()  "${q}"  k=${k}  top=${hits[0].score.toFixed(4)}`, "ok");
+
+      // Update histogram in background
+      renderHistogram(db, q).catch(() => {});
     } catch (err) {
       setStatus("error", "err");
       log("Query failed: " + err.message, "err");
@@ -563,8 +1299,11 @@
       log("✓ Deleted IndexedDB database tragar." + NAMESPACE, "ok");
 
       docs.clear();
+      allChunks.length = 0;
       renderDocList();
+      renderChunkList();
       document.getElementById("results").innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Results will appear here.</span>';
+      document.getElementById("histogram-wrap").innerHTML = '<span class="hist-empty">Run a query first, then switch here to see the score distribution.</span>';
 
       await init();
     } catch (err) {
@@ -587,7 +1326,7 @@
     };
     reader.onerror = () => log("Failed to read file: " + reader.error, "err");
     reader.readAsText(file);
-    fileInput.value = "";  // allow re-selecting the same file
+    fileInput.value = "";
   });
 
   init();
