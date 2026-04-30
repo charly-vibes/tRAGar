@@ -1,0 +1,10 @@
+{
+  "name": "tragar-workspace",
+  "private": true,
+  "scripts": {
+    "test:browser": "playwright test tests/browser/"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}

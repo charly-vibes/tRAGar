@@ -37,17 +37,29 @@ fmt:
 lint:
     find src -name '*.cpp' -o -name '*.h' | xargs clang-tidy
 
-# Install JS dependencies
+# Install JS dependencies (library)
 js-install:
     bun install --cwd js
+
+# Install workspace dependencies (Playwright etc.)
+install:
+    bun install
+
+# Bundle TypeScript for the browser (outputs dist/js/tragar.js)
+build-js:
+    bun build js/tragar.ts --outdir dist/js --target browser --format esm --external @xenova/transformers
 
 # Type-check TypeScript
 ts-check:
     bun run --cwd js type-check
 
-# Run JS tests
+# Run JS unit tests
 test-js:
     bun test js/tests/
+
+# Run browser smoke tests (builds bundle first)
+test-browser: build-js
+    bunx playwright test tests/browser/
 
 # Compile and run native C++ tests without cmake (requires g++-15)
 test-native-direct:

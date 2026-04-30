@@ -17,9 +17,8 @@
   <pre id="output">Running…</pre>
 
   <script type="module">
-    // NOTE: replace this import with the dist path once the TS is compiled.
-    // For now this file documents the intended API; run via `bun test` for the
-    // automated proof.
+    // Build the bundle first: just build-js
+    // Then serve with: just test-browser (automated) or python3 -m http.server 3456
 
     // ── Deterministic embedder fixture ──────────────────────────────────────
     const DIM = 8;
