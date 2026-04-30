@@ -582,8 +582,28 @@
 
     <!-- Config tab -->
     <div id="config-tab-content" class="tab-content">
+      <!-- Embedder -->
+      <div class="cfg-section-title">Embedder</div>
+
+      <div class="cfg-row-stack">
+        <label for="cfg-embedder-model">Model</label>
+        <select id="cfg-embedder-model">
+          <option value="hash" selected>Hash (no download, not semantic)</option>
+          <option value="minilm-l6">all-MiniLM-L6-v2 — 22 MB · English</option>
+          <option value="minilm-l12">all-MiniLM-L12-v2 — 33 MB · English</option>
+          <option value="mpnet">all-mpnet-base-v2 — 90 MB · English · best</option>
+          <option value="multilingual">paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 50 langs</option>
+        </select>
+        <span class="cfg-hint" id="cfg-embedder-hint" style="font-size:0.65rem;color:var(--muted);margin-top:2px">Fast 6-gram hash. Deterministic, no download, but not truly semantic — synonyms won't score well.</span>
+      </div>
+
+      <div id="cfg-embedder-apply-row" style="display:none;justify-content:space-between;align-items:center;gap:0.5rem;margin-top:0.25rem">
+        <span style="font-size:0.65rem;color:var(--amber)">⚠ Each model has its own namespace. Apply reinitializes — current data is preserved.</span>
+        <button id="btn-apply-embedder" style="font-size:0.65rem;padding:2px 10px;flex-shrink:0">Apply</button>
+      </div>
+
       <!-- Chunking -->
-      <div class="cfg-section-title">Chunking</div>
+      <div class="cfg-section-title" style="margin-top:0.75rem">Chunking</div>
 
       <div class="cfg-row-stack">
         <label for="cfg-chunk-strategy">Strategy</label>
@@ -714,7 +734,7 @@
           Each chunk is converted into a <strong>vector</strong> — an array of numbers (here, 384 dimensions). Similar texts produce similar vectors. This encoding captures meaning, not just keywords.
         </p>
         <p class="help-p">
-          The playground uses a <strong>hash embedder</strong>: fast and deterministic, but not truly semantic. It counts 6-character n-gram hashes, which captures surface patterns but not synonyms or paraphrases. A real model (e.g. <code>all-MiniLM-L6-v2</code>) produces much better recall.
+          The playground supports a <strong>hash embedder</strong> (fast, no download, not semantic) and real transformer models via the <strong>Config → Embedder</strong> selector. The hash embedder counts 6-character n-gram hashes, which captures surface patterns but not synonyms or paraphrases. Switching to <code>all-MiniLM-L6-v2</code> or better will dramatically improve recall. Each model uses its own namespace so your data isn't lost when switching.
         </p>
         <p class="help-p">
           Click any result or chunk to expand its <strong>embedding bar chart</strong> — the top-64 active dimensions, showing which features the embedder fired on.
@@ -776,6 +796,45 @@
   // ── Deterministic embedder (no network, no model download) ──────────
   const DIM = 384;
 
+  // ── Embedder catalogue ───────────────────────────────────────────────
+  const EMBEDDER_OPTIONS = {
+    hash: {
+      label: "Hash (no download, not semantic)",
+      hint: "Fast 6-gram hash. Deterministic, no download, but not truly semantic — synonyms won't score well.",
+      dim: 384,
+      namespace: "playground",
+      getConfig(TRAGar) { return TRAGar.embedders.custom(hashEmbed, 384, "playground-hash-v1"); },
+    },
+    "minilm-l6": {
+      label: "all-MiniLM-L6-v2 — 22 MB · English",
+      hint: "~22 MB one-time download. Fast, 384-dim. Good English semantic search.",
+      dim: 384,
+      namespace: "playground-minilm-l6",
+      getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-MiniLM-L6-v2", 384); },
+    },
+    "minilm-l12": {
+      label: "all-MiniLM-L12-v2 — 33 MB · English",
+      hint: "~33 MB one-time download. Better quality than L6 at moderate cost.",
+      dim: 384,
+      namespace: "playground-minilm-l12",
+      getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-MiniLM-L12-v2", 384); },
+    },
+    mpnet: {
+      label: "all-mpnet-base-v2 — 90 MB · English · best",
+      hint: "~90 MB one-time download. Highest quality English embedder in the catalogue.",
+      dim: 768,
+      namespace: "playground-mpnet",
+      getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/all-mpnet-base-v2", 768); },
+    },
+    multilingual: {
+      label: "paraphrase-multilingual-MiniLM-L12-v2 — 117 MB · 50 languages",
+      hint: "~117 MB one-time download. Works across 50+ languages including Spanish, French, German, Chinese, Arabic.",
+      dim: 384,
+      namespace: "playground-multilingual",
+      getConfig(TRAGar) { return TRAGar.embedders.transformers("Xenova/paraphrase-multilingual-MiniLM-L12-v2", 384); },
+    },
+  };
+
   function simpleHash(s) {
     let h = 5381;
     for (let i = 0; i < s.length; i++) h = (Math.imul(33, h) ^ s.charCodeAt(i)) | 0;
@@ -807,6 +866,7 @@
 
   // ── Config state ─────────────────────────────────────────────────────
   const cfg = {
+    embedderKey: "hash",
     chunkStrategy: "blank-line",
     fixedChunkSize: 400,
     minChunkLen: 20,
@@ -919,7 +979,7 @@
 
       const note = document.createElement("div");
       note.style.cssText = "font-size:0.6rem;color:var(--muted);margin-top:3px";
-      note.textContent = `top-64 active dims of ${DIM}  (hash embedder)`;
+      note.textContent = `top-64 active dims of ${EMBEDDER_OPTIONS[cfg.embedderKey].dim}  (${EMBEDDER_OPTIONS[cfg.embedderKey].label.split(" — ")[0]})`;
       container.appendChild(note);
     });
   }
@@ -1059,6 +1119,21 @@
   setupTabs("left-tabs");
   setupTabs("right-tabs");
 
+  // ── Embedder selector ────────────────────────────────────────────────
+  const embedderHintEl  = document.getElementById("cfg-embedder-hint");
+  const embedderApplyRow = document.getElementById("cfg-embedder-apply-row");
+
+  document.getElementById("cfg-embedder-model").addEventListener("change", e => {
+    cfg.embedderKey = e.target.value;
+    embedderHintEl.textContent = EMBEDDER_OPTIONS[cfg.embedderKey].hint;
+    embedderApplyRow.style.display = "flex";
+  });
+
+  document.getElementById("btn-apply-embedder").addEventListener("click", () => {
+    embedderApplyRow.style.display = "none";
+    reinit();
+  });
+
   // ── Config controls ───────────────────────────────────────────────────
   const strategyHints = {
     "blank-line": "Split on one or more blank lines. Natural for prose and markdown.",
@@ -1132,11 +1207,17 @@
 
   // ── Main ─────────────────────────────────────────────────────────────
   let db = null;
+  let TRAGarLib = null;
 
   async function init() {
     setStatus("loading…", "busy");
     try {
-      const { TRAGar } = await import("../../dist/js/tragar.js");
+      if (!TRAGarLib) {
+        const mod = await import("../../dist/js/tragar.js");
+        TRAGarLib = mod.TRAGar;
+      }
+      const TRAGar = TRAGarLib;
+      const opt = EMBEDDER_OPTIONS[cfg.embedderKey];
 
       db = await TRAGar.create({
         store: TRAGar.stores.opfs({
@@ -1144,13 +1225,16 @@
             log(`⚠ [${code}] ${message}`, "warn");
           },
         }),
-        embedder: TRAGar.embedders.custom(hashEmbed, DIM, "playground-hash-v1"),
-        namespace: "playground",
+        embedder: opt.getConfig(TRAGar),
+        namespace: opt.namespace,
       });
 
       storeBadge.textContent = db.storeMode;
       storeBadge.className = "badge ok";
       document.getElementById("cfg-store").textContent = db.storeMode;
+      document.getElementById("cfg-namespace").textContent = db.namespace;
+      document.getElementById("cfg-embedder").textContent = opt.label.split(" — ")[0];
+      document.getElementById("cfg-dim").textContent = opt.dim;
 
       const s = await db.stats();
       if (s.count > 0) {
@@ -1158,13 +1242,26 @@
         log(`Loaded ${s.count} persisted chunks from ${db.storeMode}`, "ok");
       } else {
         setStatus("ready", "ok");
-        log(`Instance created  storeMode:${db.storeMode}  namespace:${db.namespace}`, "ok");
+        log(`Instance created  storeMode:${db.storeMode}  namespace:${db.namespace}  embedder:${opt.label.split(" — ")[0]}`, "ok");
       }
       updateStats(db);
     } catch (err) {
       setStatus("error", "err");
       log("Init failed: " + err.message, "err");
     }
+  }
+
+  async function reinit() {
+    if (db) {
+      try { await db.close(); } catch (_) {}
+      db = null;
+    }
+    allChunks.length = 0;
+    docs.clear();
+    renderDocList();
+    renderChunkList();
+    document.getElementById("results").innerHTML = '<span style="color:var(--muted);font-size:0.75rem">Results will appear here.</span>';
+    await init();
   }
 
   // ── Ingest ───────────────────────────────────────────────────────────
@@ -1279,7 +1376,7 @@
     if (!confirm("Delete all persisted chunks? This cannot be undone.")) return;
     if (db) { try { await db.close(); } catch {} db = null; }
 
-    const NAMESPACE = "playground";
+    const NAMESPACE = db ? db.namespace : EMBEDDER_OPTIONS[cfg.embedderKey].namespace;
     setStatus("resetting…", "busy");
     try {
       try {
