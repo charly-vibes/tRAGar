@@ -1,7 +1,7 @@
 # public-api Specification
 
 ## Purpose
-TBD - created by archiving change add-initial-capabilities. Update Purpose after archive.
+Defines the TRAGar class factory, ingestion, query, maintenance, seam factory, and warning APIs.
 ## Requirements
 ### Requirement: TRAGar Factory
 The library SHALL expose a static async `TRAGar.create(opts?)` factory that returns a fully initialized `TRAGar` instance. `create()` MUST open the store and read its metadata but MUST NOT load the embedder. All five seams (chunker, embedder, store, index, reranker) SHALL have working defaults when `opts` is omitted.

@@ -9,5 +9,5 @@ The markdown chunker targets 400-token text passages. The Waste Land Walk needs 
 - Extend `Chunk.meta` with optional `frequency`, `contexts`, and `tier` fields
 
 ## Impact
-- Affected specs: chunker-vocabulary (new)
-- Affected code: js/tragar.ts, Chunk type, chunker implementations
+- Affected specs: chunker-vocabulary (new), public-api (ingest pipeline behavior for vocabulary chunk pooling)
+- Affected code: js/tragar.ts, Chunk type, chunker implementations, ingest pipeline

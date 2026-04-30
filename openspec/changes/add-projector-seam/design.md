@@ -12,7 +12,7 @@ The Projector seam mirrors the existing five seams (Chunker, Embedder, Store, In
 
 ## Risks / Trade-offs
 - PCA basis is invalidated if new vectors are added post-fit; documented in `fitProjector()` JSDoc
-- UMAP is non-deterministic; seed option recommended for reproducible layouts
+- UMAP is non-deterministic; `UmapOpts.seed` (type `number`) is available for reproducible layouts — callers producing build-time artifacts MUST set a seed to ensure the layout is stable across runs
 
 ## Open Questions
 - Should a fitted basis be serialized to the store? (Recommendation: v0.2, skip in v0.1)

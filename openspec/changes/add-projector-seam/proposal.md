@@ -9,6 +9,9 @@
 - Extend `TRAGarOptions` with optional `projector?` field
 - Add `project(id)`, `projectAll()`, and `fitProjector()` instance methods to `TRAGar`
 
+## Depends on
+- `add-vector-access-export` — `fitProjector()` calls `getAllVectors()` to obtain the float32 matrix passed to `Projector.fit()`
+
 ## Impact
 - Affected specs: projector (new)
 - Affected code: js/tragar.ts, TRAGarOptions type, TRAGar class

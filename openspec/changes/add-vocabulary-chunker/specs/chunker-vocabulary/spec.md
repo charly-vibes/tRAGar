@@ -14,6 +14,10 @@ The library SHALL expose `chunkers.vocabulary(opts?: VocabularyChunkerOpts)` tha
 - **WHEN** `minFrequency: 3` is set and a word appears only twice
 - **THEN** that word type is not emitted as a chunk
 
+#### Scenario: minFrequency higher than any word frequency emits nothing
+- **WHEN** `minFrequency: 5` is set on a corpus where no word appears 5 or more times
+- **THEN** zero chunks are emitted and a `Warning { kind: 'EmptyVocabulary' }` is fired via `onWarn`
+
 #### Scenario: includeFrequency attaches count
 - **WHEN** `includeFrequency: true` and "rain" appears 7 times
 - **THEN** the "rain" chunk has `meta.frequency = 7`
@@ -22,19 +26,19 @@ The library SHALL expose `chunkers.vocabulary(opts?: VocabularyChunkerOpts)` tha
 - **WHEN** `includeContexts: true` and `maxContexts: 2`
 - **THEN** each chunk has `meta.contexts` with at most 2 example sentences containing the word
 
-### Requirement: Vocabulary Chunker Pooling
-When pooling per-occurrence embeddings, the vocabulary chunker SHALL embed each occurrence of a word type in its sentence context separately and then combine using the configured `pooling` strategy. Mean pooling (`'mean'`) averages the per-occurrence vectors. Max pooling (`'max'`) takes the element-wise maximum. Mean pooling is the default because it produces more stable cluster geometry for context-dependent words.
+### Requirement: Vocabulary Pooling in the Ingest Pipeline
+The vocabulary chunker itself SHALL NOT call the embedder. The chunker collects all occurrence-context sentences for each word type internally and attaches them to `chunk.meta.contexts`. The TRAGar ingest pipeline, when ingesting chunks that carry `chunk.meta.wordType` (identifying them as vocabulary chunks), SHALL embed each context sentence separately using the configured embedder and pool the resulting vectors using the `pooling` strategy configured in the chunker factory. Mean pooling (`'mean'`) computes the element-wise mean of all per-occurrence embeddings and is the default because it produces more stable cluster geometry for context-dependent words. Max pooling (`'max'`) takes the element-wise maximum. The `includeContexts` option controls whether contexts are retained in the persisted chunk metadata; when `false` (default), contexts are used for pooling during ingest then discarded from storage.
 
 #### Scenario: mean pooling default
 - **WHEN** `chunkers.vocabulary()` is used with default options and a word appears in 3 sentences
-- **THEN** the stored vector is the mean of the 3 contextual embeddings
+- **THEN** the stored vector is the element-wise mean of the 3 per-context embeddings produced by the ingest pipeline
 
 #### Scenario: max pooling option
-- **WHEN** `chunkers.vocabulary({ pooling: 'max' })` is used
-- **THEN** the stored vector is the element-wise maximum of the per-occurrence embeddings
+- **WHEN** `chunkers.vocabulary({ pooling: 'max' })` is used and a word appears in 3 sentences
+- **THEN** the stored vector is the element-wise maximum of the 3 per-context embeddings produced by the ingest pipeline
 
 ### Requirement: Vocabulary Chunk Meta Fields
-The `Chunk.meta` type SHALL include optional fields `frequency?: number` (occurrence count in source), `contexts?: string[]` (example sentences), and `tier?: 1 | 2 | 3` (assigned by a Clusterer post-processing step, not by the chunker itself).
+The `Chunk.meta` type SHALL include optional fields `wordType?: string` (normalized word type, set by the vocabulary chunker on every vocabulary chunk — used by the ingest pipeline to identify chunks requiring occurrence pooling), `frequency?: number` (occurrence count in source), `contexts?: string[]` (example sentences, retained in storage only when `includeContexts: true`), and `tier?: number` (assigned by a Clusterer post-processing step, not by the chunker itself).
 
 #### Scenario: tier field is not set by chunker
 - **WHEN** a vocabulary chunk is emitted by `chunkers.vocabulary()`

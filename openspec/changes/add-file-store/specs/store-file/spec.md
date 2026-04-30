@@ -1,14 +1,18 @@
 ## ADDED Requirements
 ### Requirement: File Store Factory
-The library SHALL expose `stores.file(dirPath: string): Store` for Node.js environments. The factory MUST write store files to `{dirPath}/tragar/{namespace}/` using the same binary format as `stores.opfs()`: `meta.json`, `vectors.bin`, `scales.bin`, `chunks.jsonl`, `lookup.bin`, and `tombstones.bin`. The files MUST be byte-identical to what `stores.opfs()` would produce for the same data and configuration. When `stores.file()` is called in a browser environment (`typeof navigator !== 'undefined'`), it MUST throw `TRAGarError { code: 'InvalidConfig' }` immediately at call time before any async work.
+The library SHALL expose `stores.file(dirPath: string): Store` for Node.js environments. The factory MUST write store files to `{dirPath}/tragar/{namespace}/` using the same binary format as `stores.opfs()`: `meta.json`, `vectors.bin`, `scales.bin`, `chunks.jsonl`, `lookup.bin`, and `tombstones.bin`. The `{namespace}` segment is resolved from the `namespace` field of the enclosing `TRAGarOptions` (default: `'default'`), consistent with how `stores.opfs()` partitions namespaces. The files MUST be byte-identical to what `stores.opfs()` would produce for the same data and configuration. When `stores.file()` is called in a non-Node.js environment (detected via `typeof process === 'undefined' || !process.versions?.node`), it MUST throw `TRAGarError { code: 'InvalidConfig' }` immediately at call time before any async work. Note: `typeof navigator === 'undefined'` is NOT a reliable Node.js check because service workers (browser contexts) also lack `navigator`. If `dirPath` is not writable, the first async store operation MUST reject with `TRAGarError { code: 'StoreUnavailable', message: <OS error message> }`; detection at call time is not required.
 
 #### Scenario: file layout matches OPFS format
 - **WHEN** `stores.file('/tmp/build')` is used to ingest a corpus in Node.js
 - **THEN** the files written under `/tmp/build/tragar/{namespace}/` are byte-identical to the files `stores.opfs()` would produce for the same input
 
-#### Scenario: browser environment throws immediately
-- **WHEN** `stores.file('/path')` is called in a browser context
+#### Scenario: non-Node environment throws immediately
+- **WHEN** `stores.file('/path')` is called in a browser context or service worker
 - **THEN** `TRAGarError { code: 'InvalidConfig' }` is thrown synchronously before any async work begins
+
+#### Scenario: non-writable dirPath fails on first write
+- **WHEN** `stores.file('/read-only-path')` is used and the path is not writable by the Node.js process
+- **THEN** the first async store operation rejects with `TRAGarError { code: 'StoreUnavailable' }`
 
 #### Scenario: written files open in browser
 - **WHEN** files written by `stores.file()` in a Node.js build step are served as static assets

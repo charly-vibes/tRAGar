@@ -10,6 +10,9 @@ After projection to 2D, the Waste Land Walk needs cluster labels for coloring do
 - Extend `TRAGarOptions` with optional `clusterer?` field
 - Add `cluster()` instance method to `TRAGar`
 
+## Depends on
+- `add-neighbor-graph` — the `NeighborGraph` type and `buildNeighborGraph()` method must exist before `Clusterer.fit()` can be implemented
+
 ## Impact
 - Affected specs: clusterer (new)
 - Affected code: js/tragar.ts, TRAGarOptions type, TRAGar class

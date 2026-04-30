@@ -1,6 +1,6 @@
 ## ADDED Requirements
 ### Requirement: Clusterer Interface
-The library SHALL expose a `Clusterer` seam with `fit(graph: NeighborGraph): Promise<ClusterMap>` and `predict(id: ChunkId): Promise<ClusterAssignment>`. `fit()` takes a `NeighborGraph` (not raw vectors) so spectral methods operate on graph structure and k-means can use projected 2D coordinates. `ClusterAssignment` SHALL have `clusterId: string` and `confidence: number` in [0, 1] (1.0 for manual assignments).
+The library SHALL expose a `Clusterer` seam with `fit(graph: NeighborGraph): Promise<ClusterMap>` and `predict(id: ChunkId): Promise<ClusterAssignment>`. `fit()` takes a `NeighborGraph` as its primary input; spectral methods use graph structure directly. k-means clusterers access 2D projected coordinates via a `Projector` reference provided at factory construction time (not passed to `fit()`). `ClusterAssignment` SHALL have `clusterId: string` and `confidence: number` in [0, 1] (1.0 for manual assignments). `predict()` MUST return the cached assignment from the most recent `fit()` call; if `fit()` has not been called, `predict()` MUST reject with `TRAGarError { code: 'InvalidConfig', message: 'clusterer not fitted' }`.
 
 #### Scenario: fit returns cluster map
 - **WHEN** `fit(graph)` is called with a built NeighborGraph
@@ -10,11 +10,15 @@ The library SHALL expose a `Clusterer` seam with `fit(graph: NeighborGraph): Pro
 - **WHEN** `predict(id)` is called after fitting
 - **THEN** a `ClusterAssignment` with `clusterId` and `confidence` is returned
 
+#### Scenario: predict without prior fit rejects
+- **WHEN** `predict(id)` is called before `fit()` has been called
+- **THEN** the call rejects with `TRAGarError { code: 'InvalidConfig' }`
+
 ### Requirement: Clusterer Factories
 The library SHALL expose:
-- `clusterers.kmeans(k: number, opts?: KMeansOpts)` — standard k-means on projected 2D coordinates
+- `clusterers.kmeans(k: number, opts?: KMeansOpts & { projector: Projector })` — k-means on 2D coordinates fetched from the provided `Projector`; the projector MUST be fitted before `fit()` is called. The `KMeansOpts` type SHALL include `seed?: number` for reproducible results.
 - `clusterers.spectral(opts?: SpectralOpts)` — graph-native spectral clustering
-- `clusterers.manual(assignments: Record<string, string>)` — editorial override; named tokens get `confidence: 1.0`, unnamed tokens get `confidence: 0`
+- `clusterers.manual(assignments: Record<string, string>)` — editorial override; named tokens get `confidence: 1.0`, unnamed tokens get `{ clusterId: '__unassigned__', confidence: 0 }`
 - `clusterers.hybrid(auto: Clusterer, overrides: Record<string, string>)` — runs `auto` first then applies named overrides on top
 
 #### Scenario: kmeans assigns k clusters
@@ -24,6 +28,10 @@ The library SHALL expose:
 #### Scenario: manual confidence 1.0
 - **WHEN** `clusterers.manual({ water: 'water', rain: 'water' })` is used
 - **THEN** "water" and "rain" chunks have `confidence: 1.0`; all other chunks have `confidence: 0`
+
+#### Scenario: manual unnamed tokens get sentinel clusterId
+- **WHEN** `clusterers.manual({ water: 'water' })` is fitted on a graph with 10 tokens and only "water" is named
+- **THEN** the 9 unnamed tokens each have `{ clusterId: '__unassigned__', confidence: 0 }`
 
 #### Scenario: hybrid applies overrides on top of auto
 - **WHEN** `clusterers.hybrid(kmeans(3), { shadow: 'boundary' })` is fitted
@@ -47,3 +55,7 @@ The library SHALL expose:
 #### Scenario: no clusterer rejects
 - **WHEN** `cluster()` is called on an instance with no `clusterer` option
 - **THEN** the call rejects with `TRAGarError { code: 'InvalidConfig' }`
+
+#### Scenario: cluster on empty namespace returns empty map
+- **WHEN** `cluster()` is called on an instance with no ingested chunks
+- **THEN** an empty `ClusterMap` is returned immediately without building a neighbor graph

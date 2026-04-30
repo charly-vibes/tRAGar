@@ -4,7 +4,7 @@
 
 #### Scenario: toward shifts results
 - **WHEN** `query('plants', { toward: 'water' })` is called
-- **THEN** results are biased toward tokens that are near both "plants" and "water" compared to a plain `query('plants')`
+- **THEN** the cosine score between the modified query vector `q'` and the stored embedding of 'water' is strictly greater than the cosine score between the unmodified query vector `q` and the stored embedding of 'water'
 
 #### Scenario: awayFrom repels results
 - **WHEN** `query('the', { awayFrom: ['a', 'an'] })` is called
@@ -19,7 +19,7 @@
 - **THEN** the query rejects with `TRAGarError { code: 'TermNotFound' }`
 
 ### Requirement: Boundary Query
-`QueryOptions` SHALL accept `boundaryOf?: [string, string]`. When set, the query string is ignored entirely. A synthetic query vector is constructed at the midpoint between the two named terms: `q' = normalize(v_A + v_B)`. Standard top-K cosine search then runs against this midpoint vector to find tokens near the cluster boundary. If either named term is not in the store, the query MUST reject with `TRAGarError { code: 'TermNotFound' }`.
+`QueryOptions` SHALL accept `boundaryOf?: [string, string]`. When set, the query string is ignored entirely. A synthetic query vector is constructed at the midpoint between the two named terms: `q' = normalize(v_A + v_B)`. Standard top-K cosine search then runs against this midpoint vector to find tokens near the cluster boundary. If either named term is not in the store, the query MUST reject with `TRAGarError { code: 'TermNotFound' }`. Combining `boundaryOf` with `toward` or `awayFrom` in the same query MUST reject with `TRAGarError { code: 'InvalidConfig', message: 'boundaryOf cannot be combined with toward or awayFrom' }`.
 
 #### Scenario: boundaryOf ignores query string
 - **WHEN** `query('anything', { boundaryOf: ['water', 'stone'] })` is called
@@ -32,3 +32,7 @@
 #### Scenario: boundaryOf unknown term rejects
 - **WHEN** `boundaryOf: ['water', 'nonexistent']` is called
 - **THEN** the query rejects with `TRAGarError { code: 'TermNotFound' }`
+
+#### Scenario: boundaryOf combined with toward rejects
+- **WHEN** `query('text', { boundaryOf: ['water', 'stone'], toward: 'earth' })` is called
+- **THEN** the query rejects with `TRAGarError { code: 'InvalidConfig' }`

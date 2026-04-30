@@ -12,7 +12,7 @@ The Clusterer seam mirrors the five existing seams. It is purely JS-side and ope
 
 ## Risks / Trade-offs
 - Clusterer depends on `NeighborGraph` being pre-built; `cluster()` should document this dependency
-- k-means is non-deterministic; seed option recommended for reproducible results
+- k-means is non-deterministic; `KMeansOpts.seed` (type `number`) is available for reproducible results — the Waste Land Walk MUST set a seed to ensure stable cluster colors across page loads
 
 ## Open Questions
 - Should the clusterer assign tiers or should tier assignment remain editorial? (Recommendation: clusterer assigns clusters, editorial assigns tier labels to cluster IDs)

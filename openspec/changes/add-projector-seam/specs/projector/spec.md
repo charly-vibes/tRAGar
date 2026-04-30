@@ -11,7 +11,7 @@ The library SHALL expose a `Projector` seam with `inputDim: number`, `outputDim:
 - **THEN** an array of N projected `Float32Array` values is returned, each in the same cached basis as `transform()`
 
 ### Requirement: Projector Factories
-The library SHALL expose `projectors.pca(outputDim?)`, `projectors.umap(opts?)`, `projectors.identity()`, and `projectors.custom(fit, transform, inputDim, outputDim)`. `pca()` defaults to `outputDim = 2` and uses `ml-pca`. `umap()` uses `umap-js`. `identity()` is a no-op for corpora already in low-dimensional space. Both `pca` and `umap` MUST be lazy imports (not bundled into `tragar.wasm`).
+The library SHALL expose `projectors.pca(outputDim?)`, `projectors.umap(opts?)`, `projectors.identity()`, and `projectors.custom(fit, transform, inputDim, outputDim)`. `pca()` defaults to `outputDim = 2` and uses `ml-pca`. `umap()` uses `umap-js`. `identity()` is a no-op for corpora already in low-dimensional space. Both `pca` and `umap` MUST use dynamic JS imports (`import()`) deferred until the first `fit()` call, so the underlying libraries are excluded from the synchronous module graph and do not affect bundle size for callers that do not use a projector. The `UmapOpts` type SHALL include `seed?: number` for reproducible layouts — callers producing build-time artifacts (e.g. `vocab.json`) MUST set a seed.
 
 #### Scenario: pca default output dimension
 - **WHEN** `projectors.pca()` is called with no arguments and fitted on a 384-dim matrix
@@ -43,3 +43,11 @@ The library SHALL expose `projectors.pca(outputDim?)`, `projectors.umap(opts?)`,
 #### Scenario: no projector configured
 - **WHEN** `project(id)` is called on an instance created without a `projector` option
 - **THEN** the call rejects with `TRAGarError { code: 'InvalidConfig' }`
+
+#### Scenario: project before fit rejects
+- **WHEN** `project(id)` is called after `TRAGar.create()` on an empty namespace (no auto-fit occurred) without a prior `fitProjector()` call
+- **THEN** the call rejects with `TRAGarError { code: 'InvalidConfig', message: 'projector not fitted — call fitProjector()' }`
+
+#### Scenario: project after ingest without refit rejects
+- **WHEN** `fitProjector()` is called on an existing corpus, new chunks are ingested via `ingest()`, then `project(newId)` is called for a newly ingested chunk id
+- **THEN** the call rejects with `TRAGarError { code: 'InvalidConfig', message: 'projector basis is stale — call fitProjector() after ingest()' }`

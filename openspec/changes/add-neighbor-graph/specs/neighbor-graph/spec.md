@@ -18,8 +18,12 @@ The library SHALL expose a `NeighborGraph` interface with `neighbors(id: ChunkId
 - **WHEN** `toJSON()` is called
 - **THEN** the result has `{ version: 1, k: number, nodes: [{ id, neighbors: [{ id, score }] }] }`
 
+#### Scenario: neighbors with unknown id rejects
+- **WHEN** `neighbors(id)` is called with an id not present in the graph (e.g. a chunk tombstoned after the graph was built)
+- **THEN** the call throws `TRAGarError { code: 'NotFound' }`. Note: the graph does not auto-update when chunks are deleted; callers must call `buildNeighborGraph()` again to reflect deletions.
+
 ### Requirement: buildNeighborGraph Method
-`TRAGar` SHALL expose `buildNeighborGraph(k?: number): Promise<NeighborGraph>` with a default `k = 10`. The method MUST be O(N²) in vector count. The result SHALL be held in memory and NOT persisted to the store by default. It MAY be serialized via `toJSON()` and written into external build artifacts. For a corpus of 200 tokens at dim=384 the operation MUST complete in under 5 ms.
+`TRAGar` SHALL expose `buildNeighborGraph(k?: number): Promise<NeighborGraph>` with a default `k = 10`. If `k` is greater than or equal to the number of stored chunks `N`, `k` MUST be silently clamped to `N − 1` and a `Warning { kind: 'NeighborKClamped', requested: number, actual: number }` MUST be emitted via `onWarn`. The result SHALL be held in memory and NOT persisted to the store by default. It MAY be serialized via `toJSON()` and written into external build artifacts. For a corpus of 200 tokens at dim=384 the operation MUST complete in under 5 ms. (The naive implementation is O(N²); for the Waste Land Walk's ~180-token vocabulary this is acceptable. The binding constraint is the 5 ms budget, not algorithm complexity.)
 
 #### Scenario: default k
 - **WHEN** `buildNeighborGraph()` is called with no argument
@@ -36,3 +40,7 @@ The library SHALL expose a `NeighborGraph` interface with `neighbors(id: ChunkId
 #### Scenario: result not persisted
 - **WHEN** `buildNeighborGraph()` is called and then the instance is closed and reopened
 - **THEN** the neighbor graph is not available without calling `buildNeighborGraph()` again
+
+#### Scenario: k clamped when k >= N
+- **WHEN** `buildNeighborGraph(10)` is called on a corpus with only 7 stored chunks
+- **THEN** k is silently clamped to 6, a `Warning { kind: 'NeighborKClamped', requested: 10, actual: 6 }` is emitted, and each node has at most 6 neighbors
