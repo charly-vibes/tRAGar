@@ -10,8 +10,9 @@
 
 /** All codes that tRAGar may reject with. */
 export type ErrorCode =
-  | "InstanceClosed"  // method called after close()
-  | "InvalidConfig";  // bad namespace, unsupported config, etc.
+  | "InstanceClosed"      // method called after close()
+  | "InvalidConfig"       // bad namespace, unsupported config, etc.
+  | "EmbedderLoadFailed"; // transformers.js model or module failed to load
 
 // ────────────────────────────────────────────────────────────────────────────
 // Store configs
@@ -27,6 +28,17 @@ export interface MemoryStoreConfig {
 
 export interface CustomEmbedderConfig {
   readonly type: "custom";
+  readonly dim: number;
+  readonly modelId: string;
+  embed(batch: string[]): Promise<Float32Array[]>;
+}
+
+/**
+ * Transformers.js embedder — lazy-loads the model on first embed() call.
+ * Throws TRAGarError("EmbedderLoadFailed") if the module or model fails to load.
+ */
+export interface TransformersEmbedderConfig {
+  readonly type: "transformers";
   readonly dim: number;
   readonly modelId: string;
   embed(batch: string[]): Promise<Float32Array[]>;
@@ -80,10 +92,11 @@ export interface CreateConfig {
   store: MemoryStoreConfig;
   /**
    * Embedder. Required for ingest() and query().
-   * Use embedders.custom() for the tracer bullet and tests.
+   * - embedders.custom() — deterministic, no network (tests and dev)
+   * - embedders.transformers() — lazy-loads transformers.js on first use (default path)
    * Omitting creates a lifecycle-only instance (close() works; ingest/query reject).
    */
-  embedder?: CustomEmbedderConfig;
+  embedder?: CustomEmbedderConfig | TransformersEmbedderConfig;
   /** Corpus namespace. Must match /^[a-zA-Z0-9_-]{1,64}$/. Defaults to "default". */
   namespace?: string;
 }

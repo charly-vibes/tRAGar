@@ -8,28 +8,24 @@
 import type {
   CreateConfig,
   CustomEmbedderConfig,
-  ErrorCode,
   Hit,
   IngestDoc,
   MemoryStoreConfig,
   QueryOptions,
   Stats,
   StoreMode,
+  TransformersEmbedderConfig,
   TRAGarInstance,
 } from "./types.ts";
+import { TRAGarError } from "./errors.ts";
+import {
+  createTransformersEmbedder,
+  DEFAULT_DIM,
+  DEFAULT_MODEL,
+} from "./seams/transformers-embedder.ts";
 
-// ────────────────────────────────────────────────────────────────────────────
-// Error
-
-export class TRAGarError extends Error {
-  constructor(
-    public readonly code: ErrorCode,
-    message: string,
-  ) {
-    super(message);
-    this.name = "TRAGarError";
-  }
-}
+// Re-export so callers can import TRAGarError from the public entry point.
+export { TRAGarError };
 
 // ────────────────────────────────────────────────────────────────────────────
 // Namespace validation (matches SPEC §7.1)
@@ -106,9 +102,12 @@ class TRAGarMemoryInstance implements TRAGarInstance {
 
   #closed = false;
   #chunks: StoredChunk[] = [];
-  #embedder: CustomEmbedderConfig | undefined;
+  #embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined;
 
-  constructor(namespace: string, embedder?: CustomEmbedderConfig) {
+  constructor(
+    namespace: string,
+    embedder?: CustomEmbedderConfig | TransformersEmbedderConfig,
+  ) {
     this.namespace = namespace;
     this.modelId = embedder?.modelId ?? "";
     this.dim = embedder?.dim ?? 0;
@@ -125,9 +124,12 @@ class TRAGarMemoryInstance implements TRAGarInstance {
     }
   }
 
-  #requireEmbedder(): CustomEmbedderConfig {
+  #requireEmbedder(): CustomEmbedderConfig | TransformersEmbedderConfig {
     if (!this.#embedder) {
-      throw new TRAGarError("InvalidConfig", "No embedder configured. Pass embedder: TRAGar.embedders.custom(...) to create().");
+      throw new TRAGarError(
+        "InvalidConfig",
+        "No embedder configured. Pass embedder: TRAGar.embedders.custom(...) or TRAGar.embedders.transformers() to create().",
+      );
     }
     return this.#embedder;
   }
@@ -214,6 +216,18 @@ const embedders = {
     modelId: string,
   ): CustomEmbedderConfig {
     return { type: "custom", dim, modelId, embed };
+  },
+
+  /**
+   * Transformers.js embedder — lazy-loads the model on first ingest/query call.
+   * Defaults to Xenova/all-MiniLM-L6-v2 (English, ~23 MB, dim 384).
+   * Throws TRAGarError("EmbedderLoadFailed") if the module or model fails to load.
+   */
+  transformers(
+    modelId: string = DEFAULT_MODEL,
+    dim: number = DEFAULT_DIM,
+  ): TransformersEmbedderConfig {
+    return createTransformersEmbedder(modelId, dim);
   },
 };
 
