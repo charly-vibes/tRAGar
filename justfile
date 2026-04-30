@@ -39,11 +39,22 @@ lint:
 
 # Install JS dependencies
 js-install:
-    npm install --prefix js
+    bun install --cwd js
 
 # Type-check TypeScript
 ts-check:
-    npx --prefix js tsc --noEmit
+    bun run --cwd js type-check
+
+# Run JS tests
+test-js:
+    bun test js/tests/
+
+# Compile and run native C++ tests without cmake (requires g++-15)
+test-native-direct:
+    g++-15 -std=c++23 -I src/core \
+        tests/native/test_bootstrap.cpp src/core/tragar_core.cpp \
+        -I tests/native \
+        -o /tmp/tragar_test_bootstrap && /tmp/tragar_test_bootstrap
 
 # Clean build artifacts
 clean:

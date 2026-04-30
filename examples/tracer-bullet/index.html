@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>tRAGar — tracer-bullet demo</title>
+  <style>
+    body { font-family: monospace; max-width: 60ch; margin: 2rem auto; padding: 0 1rem; }
+    pre  { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
+    .ok  { color: green; }
+    .err { color: red; }
+  </style>
+</head>
+<body>
+  <h1>tRAGar — tracer-bullet demo</h1>
+  <p>Slice 1: <code>create()</code> / <code>close()</code> lifecycle with <code>stores.memory()</code>.</p>
+  <pre id="output">Running…</pre>
+
+  <script type="module">
+    // NOTE: replace this import with the dist path once the TS is compiled.
+    // For now this file documents the intended API; run via `bun test` for the
+    // automated proof.
+
+    async function run() {
+      const out = document.getElementById("output");
+      const log = (...args) => {
+        out.textContent += args.join(" ") + "\n";
+      };
+      try {
+        // Dynamic import — works once js/ is bundled to dist/
+        const { TRAGar } = await import("../../dist/js/tragar.js");
+
+        const db = await TRAGar.create({
+          store: TRAGar.stores.memory(),
+          namespace: "demo",
+        });
+
+        log("✓ create()  storeMode:", db.storeMode, "  namespace:", db.namespace);
+
+        await db.close();
+        log("✓ close()   success");
+
+        try {
+          await db.close();
+          log("✗ expected second close() to throw");
+        } catch (e) {
+          log("✓ second close() threw:", e.code, "—", e.message);
+        }
+
+        out.classList.add("ok");
+        log("\nAll checks passed.");
+      } catch (err) {
+        out.classList.add("err");
+        out.textContent += "\n\nERROR: " + err.message;
+      }
+    }
+
+    run();
+  </script>
+</body>
+</html>

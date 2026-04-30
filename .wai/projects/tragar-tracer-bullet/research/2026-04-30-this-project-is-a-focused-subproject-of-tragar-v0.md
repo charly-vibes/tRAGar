@@ -1,0 +1,1 @@
+This project is a focused subproject of 'tRAGar v0.1' for defining the first executable vertical slice. Chosen direction: minimal/dev-first tracer bullet. The slice proves build + C++/Embind/TS boundary + create/ingest/query loop while explicitly excluding OPFS, transformers.js, queryStream, and the 8 active seam-expansion OpenSpec changes.

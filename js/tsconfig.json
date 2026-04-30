@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noImplicitAny": true,
+    "exactOptionalPropertyTypes": true,
+    "lib": ["ES2022", "DOM"],
+    "outDir": "../dist/js",
+    "declaration": true,
+    "declarationDir": "../dist/types",
+    "sourceMap": true,
+    "useDefineForClassFields": true
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "../build", "../dist"]
+}
