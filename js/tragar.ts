@@ -4,13 +4,17 @@
  * Slice 2: ingest/query/stats on top of the Slice 1 lifecycle skeleton.
  * All logic is pure JS — no WASM in this slice.
  * Vectors are stored as raw float32 (no int8 quantization until the C++ path lands).
+ *
+ * Slice 6: OPFS/IndexedDB persistence via TRAGarPersistentInstance.
  */
 import type {
   CreateConfig,
   CustomEmbedderConfig,
+  FileBackend,
   Hit,
   IngestDoc,
   MemoryStoreConfig,
+  OpfsStoreConfig,
   QueryOptions,
   Stats,
   StoreMode,
@@ -23,6 +27,7 @@ import {
   DEFAULT_DIM,
   DEFAULT_MODEL,
 } from "./seams/transformers-embedder.ts";
+import { openPersistentBackend } from "./seams/opfs-store.ts";
 
 // Re-export so callers can import TRAGarError from the public entry point.
 export { TRAGarError };
@@ -219,12 +224,278 @@ class TRAGarMemoryInstance implements TRAGarInstance {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Persistent instance (Slice 6: OPFS/IndexedDB store)
+
+const SCHEMA_VERSION = 1;
+
+interface Meta {
+  schemaVersion: number;
+  modelId: string;
+  dim: number;
+  count: number;
+  rawCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface ChunkRecord {
+  id: string;
+  text: string;
+  source: string;
+  vector: number[];
+}
+
+class TRAGarPersistentInstance implements TRAGarInstance {
+  readonly namespace: string;
+  readonly storeMode: StoreMode;
+  readonly modelId: string;
+  readonly dim: number;
+
+  #closed = false;
+  #chunks: StoredChunk[] = [];
+  #embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined;
+  #backend: FileBackend;
+  #createdAt: string = new Date().toISOString();
+
+  private constructor(
+    namespace: string,
+    embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined,
+    backend: FileBackend,
+    storeMode: StoreMode,
+  ) {
+    this.namespace = namespace;
+    this.modelId = embedder?.modelId ?? "";
+    this.dim = embedder?.dim ?? 0;
+    this.#embedder = embedder;
+    this.#backend = backend;
+    this.storeMode = storeMode;
+  }
+
+  static async open(
+    namespace: string,
+    embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined,
+    backend: FileBackend,
+    storeMode: StoreMode,
+  ): Promise<TRAGarPersistentInstance> {
+    const inst = new TRAGarPersistentInstance(namespace, embedder, backend, storeMode);
+    await inst.#loadFromStore();
+    return inst;
+  }
+
+  get count(): number {
+    return this.#chunks.length;
+  }
+
+  #assertOpen(): void {
+    if (this.#closed) {
+      throw new TRAGarError("InstanceClosed", "This TRAGar instance has already been closed.");
+    }
+  }
+
+  #requireEmbedder(): CustomEmbedderConfig | TransformersEmbedderConfig {
+    if (!this.#embedder) {
+      throw new TRAGarError(
+        "InvalidConfig",
+        "No embedder configured. Pass embedder: TRAGar.embedders.custom(...) or TRAGar.embedders.transformers() to create().",
+      );
+    }
+    return this.#embedder;
+  }
+
+  async #loadFromStore(): Promise<void> {
+    const metaBytes = await this.#backend.read("meta.json");
+    if (!metaBytes) {
+      // Fresh namespace — write initial meta.json
+      this.#createdAt = new Date().toISOString();
+      await this.#writeMeta();
+      return;
+    }
+
+    const meta = JSON.parse(new TextDecoder().decode(metaBytes)) as Meta;
+
+    if (meta.schemaVersion > SCHEMA_VERSION) {
+      throw new TRAGarError(
+        "SchemaTooNew",
+        `Namespace uses schema version ${meta.schemaVersion} but this library only supports up to version ${SCHEMA_VERSION}.`,
+      );
+    }
+    if (meta.schemaVersion < SCHEMA_VERSION) {
+      throw new TRAGarError(
+        "SchemaTooOld",
+        `Namespace uses schema version ${meta.schemaVersion} and no migration path is available.`,
+      );
+    }
+
+    this.#createdAt = meta.createdAt;
+
+    const chunksBytes = await this.#backend.read("chunks.jsonl");
+    if (chunksBytes) {
+      const text = new TextDecoder().decode(chunksBytes);
+      for (const line of text.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const rec = JSON.parse(trimmed) as ChunkRecord;
+        this.#chunks.push({
+          id: rec.id,
+          text: rec.text,
+          source: rec.source,
+          vector: new Float32Array(rec.vector),
+        });
+      }
+    }
+  }
+
+  async #writeMeta(): Promise<void> {
+    const meta: Meta = {
+      schemaVersion: SCHEMA_VERSION,
+      modelId: this.modelId,
+      dim: this.dim,
+      count: this.#chunks.length,
+      rawCount: this.#chunks.length,
+      createdAt: this.#createdAt,
+      updatedAt: new Date().toISOString(),
+    };
+    await this.#backend.write("meta.json", new TextEncoder().encode(JSON.stringify(meta)));
+  }
+
+  async #appendChunks(newChunks: StoredChunk[]): Promise<void> {
+    const existing = await this.#backend.read("chunks.jsonl");
+    const existingText = existing ? new TextDecoder().decode(existing) : "";
+
+    const newLines = newChunks
+      .map((c) =>
+        JSON.stringify({
+          id: c.id,
+          text: c.text,
+          source: c.source,
+          vector: Array.from(c.vector),
+        }),
+      )
+      .join("\n");
+
+    const combined =
+      existingText && existingText.trimEnd().length > 0
+        ? existingText.trimEnd() + "\n" + newLines
+        : newLines;
+
+    await this.#backend.write("chunks.jsonl", new TextEncoder().encode(combined));
+    await this.#writeMeta();
+  }
+
+  async ingest(doc: IngestDoc): Promise<void> {
+    this.#assertOpen();
+    const embedder = this.#requireEmbedder();
+
+    const paragraphs = paragraphChunk(doc.text);
+    if (paragraphs.length === 0) return;
+
+    const vectors = await embedder.embed(paragraphs);
+    const newChunks: StoredChunk[] = [];
+
+    for (let i = 0; i < paragraphs.length; i++) {
+      const vec = new Float32Array(vectors[i]);
+      l2Normalize(vec);
+      const id = await chunkId(doc.source, i, paragraphs[i]);
+      newChunks.push({ id, text: paragraphs[i], source: doc.source, vector: vec });
+    }
+
+    await this.#appendChunks(newChunks);
+    this.#chunks.push(...newChunks);
+  }
+
+  async query(text: string, opts?: QueryOptions): Promise<Hit[]> {
+    this.#assertOpen();
+    const embedder = this.#requireEmbedder();
+
+    if (this.#chunks.length === 0) return [];
+
+    const k = opts?.k ?? 10;
+    const [qvec] = await embedder.embed([text]);
+    const query = new Float32Array(qvec);
+    l2Normalize(query);
+
+    const scored = this.#chunks.map((c) => ({
+      chunkId: c.id,
+      text: c.text,
+      source: c.source,
+      score: dotProduct(query, c.vector),
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, k);
+  }
+
+  async *queryStream(text: string, opts?: QueryOptions): AsyncGenerator<Hit> {
+    this.#assertOpen();
+    const embedder = this.#requireEmbedder();
+
+    if (this.#chunks.length === 0) return;
+
+    const k = opts?.k ?? 10;
+    const [qvec] = await embedder.embed([text]);
+    const query = new Float32Array(qvec);
+    l2Normalize(query);
+
+    const scored = this.#chunks.map((c) => ({
+      chunkId: c.id,
+      text: c.text,
+      source: c.source,
+      score: dotProduct(query, c.vector),
+    }));
+
+    scored.sort((a, b) => b.score - a.score);
+    for (const hit of scored.slice(0, k)) {
+      yield hit;
+    }
+  }
+
+  async stats(): Promise<Stats> {
+    this.#assertOpen();
+    return {
+      count: this.#chunks.length,
+      dim: this.dim,
+      modelId: this.modelId,
+      storeMode: this.storeMode,
+      namespace: this.namespace,
+    };
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) {
+      throw new TRAGarError("InstanceClosed", "This TRAGar instance has already been closed.");
+    }
+    this.#closed = true;
+  }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Store factories
 
 const stores = {
   /** In-memory store — no persistence, ideal for tests and the tracer bullet. */
   memory(): MemoryStoreConfig {
     return { type: "memory" };
+  },
+
+  /**
+   * OPFS store — persists corpus data in the browser's Origin Private File System.
+   * Falls back to IndexedDB when OPFS is unavailable (Safari < 16, locked-down
+   * WebViews) and emits onWarn("StoreFallback") when it does.
+   */
+  opfs(opts?: {
+    _backend?: OpfsStoreConfig["_backend"];
+    _simulateOpfsFailure?: boolean;
+    _fallbackBackend?: OpfsStoreConfig["_fallbackBackend"];
+  }): OpfsStoreConfig {
+    // Conditional spread omits undefined properties to satisfy exactOptionalPropertyTypes.
+    return {
+      type: "opfs",
+      ...(opts?._backend !== undefined && { _backend: opts._backend }),
+      ...(opts?._simulateOpfsFailure !== undefined && {
+        _simulateOpfsFailure: opts._simulateOpfsFailure,
+      }),
+      ...(opts?._fallbackBackend !== undefined && { _fallbackBackend: opts._fallbackBackend }),
+    };
   },
 };
 
@@ -267,9 +538,17 @@ async function create(config: CreateConfig): Promise<TRAGarInstance> {
   switch (config.store.type) {
     case "memory":
       return new TRAGarMemoryInstance(namespace, config.embedder);
+    case "opfs": {
+      const { backend, storeMode } = await openPersistentBackend(
+        namespace,
+        config.store,
+        config.onWarn,
+      );
+      return TRAGarPersistentInstance.open(namespace, config.embedder, backend, storeMode);
+    }
     default: {
-      const exhaustive: never = config.store.type;
-      throw new TRAGarError("InvalidConfig", `Unsupported store type: ${exhaustive}`);
+      const exhaustive: never = config.store;
+      throw new TRAGarError("InvalidConfig", `Unsupported store type: ${(exhaustive as { type: string }).type}`);
     }
   }
 }

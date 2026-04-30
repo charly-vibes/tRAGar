@@ -12,7 +12,15 @@
 export type ErrorCode =
   | "InstanceClosed"      // method called after close()
   | "InvalidConfig"       // bad namespace, unsupported config, etc.
-  | "EmbedderLoadFailed"; // transformers.js model or module failed to load
+  | "EmbedderLoadFailed"  // transformers.js model or module failed to load
+  | "SchemaTooNew"        // persisted schemaVersion exceeds library support
+  | "SchemaTooOld"        // persisted schemaVersion has no migration path
+  | "NamespaceLocked";    // another tab/context holds the namespace lock
+
+/** Warning codes emitted via CreateConfig.onWarn. */
+export type WarnCode =
+  | "StoreFallback"  // OPFS unavailable; fell back to IndexedDB
+  | "NamespaceLocked"; // namespace lock could not be acquired (soft warning)
 
 // ────────────────────────────────────────────────────────────────────────────
 // Store configs
@@ -21,6 +29,26 @@ export type StoreMode = "memory" | "opfs" | "indexeddb";
 
 export interface MemoryStoreConfig {
   readonly type: "memory";
+}
+
+/**
+ * Minimal file I/O interface used by the OPFS and IndexedDB store backends.
+ * Exported so tests can inject a MemoryFileBackend without real browser APIs.
+ */
+export interface FileBackend {
+  read(path: string): Promise<Uint8Array | null>;
+  write(path: string, data: Uint8Array): Promise<void>;
+  exists(path: string): Promise<boolean>;
+}
+
+export interface OpfsStoreConfig {
+  readonly type: "opfs";
+  /** @internal — inject a pre-scoped backend (skips OPFS setup). Tests only. */
+  readonly _backend?: FileBackend;
+  /** @internal — simulate OPFS unavailable to exercise the IndexedDB fallback path. Tests only. */
+  readonly _simulateOpfsFailure?: boolean;
+  /** @internal — backend to use when OPFS is unavailable (or simulated as such). Tests only. */
+  readonly _fallbackBackend?: FileBackend;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -88,8 +116,8 @@ export interface Stats {
 // Create config
 
 export interface CreateConfig {
-  /** Backing store. Use stores.memory() for the tracer bullet and tests. */
-  store: MemoryStoreConfig;
+  /** Backing store. Use stores.memory() for tests; stores.opfs() for persistence. */
+  store: MemoryStoreConfig | OpfsStoreConfig;
   /**
    * Embedder. Required for ingest() and query().
    * - embedders.custom() — deterministic, no network (tests and dev)
@@ -99,6 +127,11 @@ export interface CreateConfig {
   embedder?: CustomEmbedderConfig | TransformersEmbedderConfig;
   /** Corpus namespace. Must match /^[a-zA-Z0-9_-]{1,64}$/. Defaults to "default". */
   namespace?: string;
+  /**
+   * Optional callback for non-fatal warnings (e.g. StoreFallback when OPFS is
+   * unavailable and the store falls back to IndexedDB).
+   */
+  onWarn?: (code: WarnCode, message: string) => void;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
