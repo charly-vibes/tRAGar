@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>tRAGar — tracer-bullet demo</title>
   <style>
-    body { font-family: monospace; max-width: 60ch; margin: 2rem auto; padding: 0 1rem; }
+    body { font-family: monospace; max-width: 70ch; margin: 2rem auto; padding: 0 1rem; }
     pre  { background: #f4f4f4; padding: 1rem; border-radius: 4px; overflow-x: auto; }
     .ok  { color: green; }
     .err { color: red; }
@@ -12,7 +12,8 @@
 </head>
 <body>
   <h1>tRAGar — tracer-bullet demo</h1>
-  <p>Slice 1: <code>create()</code> / <code>close()</code> lifecycle with <code>stores.memory()</code>.</p>
+  <p>Slice 2: <code>create()</code> → <code>ingest()</code> → <code>query()</code> using a deterministic custom embedder.
+  No network, no model downloads, no persistent storage.</p>
   <pre id="output">Running…</pre>
 
   <script type="module">
@@ -20,24 +21,71 @@
     // For now this file documents the intended API; run via `bun test` for the
     // automated proof.
 
+    // ── Deterministic embedder fixture ──────────────────────────────────────
+    const DIM = 8;
+
+    function simpleHash(s) {
+      let h = 0;
+      for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+      return h;
+    }
+
+    async function identityEmbed(batch) {
+      return batch.map((text) => {
+        const v = new Float32Array(DIM);
+        v[Math.abs(simpleHash(text)) % DIM] = 1.0;
+        return v;
+      });
+    }
+
+    // ── Demo corpus ─────────────────────────────────────────────────────────
+    const CORPUS = [
+      {
+        source: "intro.md",
+        text: "tRAGar is a client-side RAG library for the browser.\n\nIt compiles a C++23 core to WebAssembly.",
+      },
+      {
+        source: "usage.md",
+        text: "Call create() to open an instance.\n\nCall ingest() to add documents.\n\nCall query() to retrieve chunks.",
+      },
+      {
+        source: "design.md",
+        text: "All vectors live in the browser.\n\nNo data crosses any network boundary the user did not opt into.",
+      },
+    ];
+
     async function run() {
       const out = document.getElementById("output");
-      const log = (...args) => {
-        out.textContent += args.join(" ") + "\n";
-      };
+      const log = (...args) => { out.textContent += args.join(" ") + "\n"; };
+
       try {
-        // Dynamic import — works once js/ is bundled to dist/
         const { TRAGar } = await import("../../dist/js/tragar.js");
 
         const db = await TRAGar.create({
           store: TRAGar.stores.memory(),
+          embedder: TRAGar.embedders.custom(identityEmbed, DIM, "demo-hash-v1"),
           namespace: "demo",
         });
 
-        log("✓ create()  storeMode:", db.storeMode, "  namespace:", db.namespace);
+        log("✓ create()  storeMode:", db.storeMode, " namespace:", db.namespace);
+        log("  modelId:", db.modelId, " dim:", db.dim);
+
+        for (const doc of CORPUS) {
+          await db.ingest(doc);
+          log(`✓ ingest()  source: ${doc.source}  count now: ${db.count}`);
+        }
+
+        const hits = await db.query("retrieve documents from the browser", { k: 3 });
+        log("\n✓ query()  top hits:");
+        for (const h of hits) {
+          log(`  [${h.score.toFixed(3)}] ${h.source}  "${h.text.slice(0, 60)}…"`);
+        }
+
+        const s = await db.stats();
+        log("\n✓ stats()  count:", s.count, " dim:", s.dim);
 
         await db.close();
-        log("✓ close()   success");
+        log("✓ close()  success");
 
         try {
           await db.close();

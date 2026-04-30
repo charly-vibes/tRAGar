@@ -1,5 +1,5 @@
 /**
- * tRAGar public TypeScript types — Slice 1
+ * tRAGar public TypeScript types — Slice 2
  *
  * This file is the authoritative contract for the JS/TS public surface.
  * Implementations in tragar.ts must satisfy these interfaces.
@@ -23,7 +23,7 @@ export interface MemoryStoreConfig {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Embedder configs (Slice 1: only custom embedder is in scope)
+// Embedder configs
 
 export interface CustomEmbedderConfig {
   readonly type: "custom";
@@ -33,23 +33,94 @@ export interface CustomEmbedderConfig {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Ingest / Query types
+
+/** One document to ingest. source is a stable identifier (path or URL). */
+export interface IngestDoc {
+  /** Stable identifier for the document (path or URL). */
+  readonly source: string;
+  /** UTF-8 text content (markdown for v0.1). */
+  readonly text: string;
+  /** Optional caller-supplied metadata attached to every chunk from this doc. */
+  readonly meta?: Record<string, unknown>;
+}
+
+/** Options for query(). */
+export interface QueryOptions {
+  /** Maximum number of hits to return. Defaults to 10. */
+  k?: number;
+}
+
+/** One retrieval result. */
+export interface Hit {
+  /** Stable chunk identifier (SHA-256 hex). */
+  readonly chunkId: string;
+  /** Chunk text as stored. */
+  readonly text: string;
+  /** Source identifier inherited from the ingested document. */
+  readonly source: string;
+  /** Cosine similarity score in [0, 1]. Higher is more relevant. */
+  readonly score: number;
+}
+
+/** Summary returned by stats(). */
+export interface Stats {
+  readonly count: number;
+  readonly dim: number;
+  readonly modelId: string;
+  readonly storeMode: StoreMode;
+  readonly namespace: string;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Create config
 
 export interface CreateConfig {
-  /** Backing store. Defaults to OPFS; use stores.memory() for the tracer bullet. */
+  /** Backing store. Use stores.memory() for the tracer bullet and tests. */
   store: MemoryStoreConfig;
+  /**
+   * Embedder. Required for ingest() and query().
+   * Use embedders.custom() for the tracer bullet and tests.
+   * Omitting creates a lifecycle-only instance (close() works; ingest/query reject).
+   */
+  embedder?: CustomEmbedderConfig;
   /** Corpus namespace. Must match /^[a-zA-Z0-9_-]{1,64}$/. Defaults to "default". */
   namespace?: string;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Instance API (Slice 1: lifecycle only)
+// Instance API (Slice 2: full lifecycle + ingest/query/stats)
 
 export interface TRAGarInstance {
   /** Corpus namespace this instance was opened with. */
   readonly namespace: string;
   /** Active backing-store mode ("memory" | "opfs" | "indexeddb"). */
   readonly storeMode: StoreMode;
+  /** Model identifier passed to the embedder. */
+  readonly modelId: string;
+  /** Embedding dimension. */
+  readonly dim: number;
+  /** Number of chunks currently stored. Updated after each ingest() call. */
+  readonly count: number;
+
+  /**
+   * Ingest one document: chunk → embed → store.
+   * Resolves when all chunks are stored; rejects with TRAGarError("InstanceClosed") if closed.
+   */
+  ingest(doc: IngestDoc): Promise<void>;
+
+  /**
+   * Query the corpus for the top-k most relevant chunks.
+   * Returns an empty array when no chunks have been ingested.
+   * Rejects with TRAGarError("InstanceClosed") if closed.
+   */
+  query(text: string, opts?: QueryOptions): Promise<Hit[]>;
+
+  /**
+   * Return a summary of the current corpus state.
+   * Rejects with TRAGarError("InstanceClosed") if closed.
+   */
+  stats(): Promise<Stats>;
 
   /**
    * Release all resources held by this instance.
