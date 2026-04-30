@@ -282,7 +282,11 @@
         <label for="doc-text">Document text (split on blank lines → chunks)</label>
         <textarea id="doc-text" rows="6" placeholder="Paste text here…"></textarea>
       </div>
-      <button class="primary" id="btn-ingest">Ingest →</button>
+      <div style="display:flex;gap:0.5rem">
+        <button id="btn-upload" style="flex:1">Upload file…</button>
+        <button class="primary" id="btn-ingest" style="flex:1">Ingest →</button>
+      </div>
+      <input type="file" id="file-input" accept=".txt,.md,.org,.rst,.csv,.json,.log" style="display:none">
 
       <div class="stats-bar">
         chunks: <span id="stat-count">—</span> &nbsp;|&nbsp;
@@ -567,6 +571,23 @@
       setStatus("error", "err");
       log("Reset failed: " + err.message, "err");
     }
+  });
+
+  // ── File upload ──────────────────────────────────────────────────────
+  const fileInput = document.getElementById("file-input");
+  document.getElementById("btn-upload").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      document.getElementById("doc-text").value = reader.result;
+      document.getElementById("doc-source").value = file.name;
+      log(`Loaded "${file.name}"  (${(file.size / 1024).toFixed(1)} KB)`, "ok");
+    };
+    reader.onerror = () => log("Failed to read file: " + reader.error, "err");
+    reader.readAsText(file);
+    fileInput.value = "";  // allow re-selecting the same file
   });
 
   init();
