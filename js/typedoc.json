@@ -1,0 +1,17 @@
+{
+  "entryPoints": ["tragar.ts", "types.ts", "errors.ts"],
+  "entryPointStrategy": "expand",
+  "tsconfig": "./tsconfig.typedoc.json",
+  "out": "../docs/api",
+  "name": "tRAGar",
+  "readme": "none",
+  "hideGenerator": true,
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "includeVersion": true,
+  "navigationLinks": {
+    "Getting Started": "../index.html",
+    "Examples": "../../index.html",
+    "GitHub": "https://github.com/charly-vibes/tRAGar"
+  }
+}

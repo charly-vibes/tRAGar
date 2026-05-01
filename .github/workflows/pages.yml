@@ -27,8 +27,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Install JS library dependencies
+        run: bun install --cwd js
+
       - name: Build JS bundle
         run: bun build js/tragar.ts --outdir dist/js --target browser --format esm --external @xenova/transformers
+
+      - name: Build API docs (TypeDoc)
+        run: bun run --cwd js docs
 
       - name: Assemble site
         run: |
@@ -36,6 +42,7 @@ jobs:
           cp index.html _site/
           cp -r examples _site/
           cp -r dist _site/
+          cp -r docs _site/
 
       - uses: actions/configure-pages@v5
 

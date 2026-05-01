@@ -72,6 +72,10 @@ test-native-direct:
 serve port="3456": build-js
     python3 -m http.server {{port}}
 
+# Build documentation (Getting Started page + TypeDoc API reference → docs/api/)
+docs: js-install
+    bun run --cwd js docs
+
 # Clean build artifacts
 clean:
-    rm -rf build dist
+    rm -rf build dist docs/api

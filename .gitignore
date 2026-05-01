@@ -74,6 +74,9 @@ playwright-report/
 dist/
 node_modules/
 
+# Generated API docs (TypeDoc output)
+docs/api/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
