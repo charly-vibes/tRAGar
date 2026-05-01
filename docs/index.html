@@ -164,7 +164,7 @@
   <div class="hero">
     <h1>t<span>RAG</span>ar</h1>
     <p>Client-side Retrieval-Augmented Generation in the browser.
-       C++23 → WebAssembly + transformers.js. Zero server. Three lines of code.</p>
+       transformers.js embeddings in the browser. Zero server. Three lines of code. (C++23 → WebAssembly coming in v0.2)</p>
     <div class="hero-btns">
       <a class="btn btn-primary" href="../examples/playground/index.html">Try the Playground</a>
       <a class="btn btn-secondary" href="api/index.html">API Reference</a>
@@ -218,12 +218,14 @@ hits.<span class="fn">forEach</span>(h => console.<span class="fn">log</span>(h.
     <h3>Ingest</h3>
     <p><code>ingest({ source, text, meta? })</code> chunks the text into paragraphs,
        embeds each chunk, and writes to the store.
-       <code>source</code> is a stable identifier (a path or URL) used to attribute hits.</p>
+       <code>source</code> is a stable identifier (a path or URL) used to attribute hits.
+       <code>meta</code> is stored with each chunk and reserved for future filtering — it
+       is not yet surfaced on query results.</p>
 
     <h3>Query</h3>
     <p><code>query(text, { k? })</code> returns the top-<em>k</em> chunks ranked by
        cosine similarity. Use <code>queryStream()</code> for an async iterator
-       that yields hits as they are scored.</p>
+       that yields hits in descending score order.</p>
 
     <h3>Namespace</h3>
     <p>Each instance operates on its own namespace (default: <code>"default"</code>).
@@ -293,7 +295,8 @@ hits.<span class="fn">forEach</span>(h => console.<span class="fn">log</span>(h.
 <span class="cmt">// Custom embedder function</span>
 <span class="kw">const</span> myEmbedder = <span class="ty">TRAGar</span>.embedders.<span class="fn">custom</span>(
   <span class="kw">async</span> (batch) => batch.<span class="fn">map</span>(() => <span class="kw">new</span> <span class="ty">Float32Array</span>(<span class="num">128</span>)),
-  <span class="num">128</span>
+  <span class="num">128</span>,
+  <span class="str">'my-test-embedder'</span>,
 );</code></pre>
   </section>
 

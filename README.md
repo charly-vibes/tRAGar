@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6)](js/types.ts)
 
 **Client-side Retrieval-Augmented Generation in the browser.**
-C++23 compiled to WebAssembly + transformers.js. Zero server. Three lines of code.
+transformers.js embeddings in the browser. Zero server. Three lines of code. (C++23 → WebAssembly coming in v0.2)
 
 ## Quick Start
 
