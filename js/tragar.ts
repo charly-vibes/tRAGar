@@ -299,7 +299,7 @@ class TRAGarMemoryInstance implements TRAGarInstance {
     };
   }
 
-  #fireDequeueWarn(): void {
+  #fireDequantWarn(): void {
     if (!this.#dequantWarnFired) {
       this.#dequantWarnFired = true;
       this.#onWarn?.(
@@ -313,13 +313,13 @@ class TRAGarMemoryInstance implements TRAGarInstance {
     this.#assertOpen();
     const chunk = this.#chunks.find((c) => c.id === id);
     if (!chunk) throw new TRAGarError("NotFound", `No chunk with id "${id}".`);
-    this.#fireDequeueWarn();
+    this.#fireDequantWarn();
     return new Float32Array(chunk.vector);
   }
 
   async getAllVectors(): Promise<{ id: string; v: Float32Array }[]> {
     this.#assertOpen();
-    this.#fireDequeueWarn();
+    this.#fireDequantWarn();
     return this.#chunks.map((c) => ({ id: c.id, v: new Float32Array(c.vector) }));
   }
 
@@ -611,7 +611,7 @@ class TRAGarPersistentInstance implements TRAGarInstance {
     };
   }
 
-  #fireDequeueWarn(): void {
+  #fireDequantWarn(): void {
     if (!this.#dequantWarnFired) {
       this.#dequantWarnFired = true;
       this.#onWarn?.(
@@ -625,13 +625,13 @@ class TRAGarPersistentInstance implements TRAGarInstance {
     this.#assertOpen();
     const chunk = this.#chunks.find((c) => c.id === id);
     if (!chunk) throw new TRAGarError("NotFound", `No chunk with id "${id}".`);
-    this.#fireDequeueWarn();
+    this.#fireDequantWarn();
     return new Float32Array(chunk.vector);
   }
 
   async getAllVectors(): Promise<{ id: string; v: Float32Array }[]> {
     this.#assertOpen();
-    this.#fireDequeueWarn();
+    this.#fireDequantWarn();
     return this.#chunks.map((c) => ({ id: c.id, v: new Float32Array(c.vector) }));
   }
 

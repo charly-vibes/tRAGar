@@ -199,8 +199,9 @@ export interface TRAGarInstance {
 
   /**
    * Export the corpus as a Blob.
-   * - 'json': { meta, chunks, vectors_b64 } — human-readable
-   * - 'binary': STORE-method zip of meta.json + chunks.jsonl
+   * - 'json': `{ meta, chunks, vectors_b64 }` — vectors packed as a contiguous float32 matrix, base64-encoded
+   * - 'binary': STORE-method zip containing meta.json and chunks.jsonl;
+   *   each line of chunks.jsonl is `{ id, text, source, vector: number[] }` (float32 values as JSON)
    */
   export(format: "json" | "binary"): Promise<Blob>;
 }

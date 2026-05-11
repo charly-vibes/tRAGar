@@ -87,7 +87,7 @@ describe("getAllVectors", () => {
 // ── DequantizationRequested warning ──────────────────────────────────────────
 
 describe("DequantizationRequested warning", () => {
-  it("fires once on first getVector call", async () => {
+  it("does not re-fire after getAllVectors already triggered it", async () => {
     const warns: string[] = [];
     const db2 = await TRAGar.create({
       store: TRAGar.stores.memory(),
