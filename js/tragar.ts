@@ -11,6 +11,7 @@ import type {
   CreateConfig,
   CustomEmbedderConfig,
   FileBackend,
+  FileStoreConfig,
   Hit,
   IngestDoc,
   MemoryStoreConfig,
@@ -28,6 +29,7 @@ import {
   DEFAULT_MODEL,
 } from "./seams/transformers-embedder.ts";
 import { openPersistentBackend } from "./seams/opfs-store.ts";
+import { openFileBackend } from "./seams/fs-store.ts";
 
 // Re-export so callers can import TRAGarError from the public entry point.
 export { TRAGarError };
@@ -710,6 +712,25 @@ const stores = {
       ...(opts?._fallbackBackend !== undefined && { _fallbackBackend: opts._fallbackBackend }),
     };
   },
+
+  /**
+   * File store — persists corpus data in a local filesystem directory.
+   * Node.js environments only. Throws InvalidConfig immediately when called
+   * in a browser or service worker.
+   *
+   * Files are written to {dirPath}/tragar/{namespace}/ and are byte-identical
+   * to stores.opfs() output, so they can be served as static assets and opened
+   * by a browser TRAGar instance using stores.opfs().
+   */
+  file(dirPath: string): FileStoreConfig {
+    if (typeof process === "undefined" || !process.versions?.node) {
+      throw new TRAGarError(
+        "InvalidConfig",
+        "stores.file() is only available in Node.js environments.",
+      );
+    }
+    return { type: "file", dirPath };
+  },
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -758,6 +779,10 @@ async function create(config: CreateConfig): Promise<TRAGarInstance> {
         config.onWarn,
       );
       return TRAGarPersistentInstance.open(namespace, config.embedder, backend, storeMode, config.onWarn);
+    }
+    case "file": {
+      const backend = await openFileBackend(namespace, config.store.dirPath);
+      return TRAGarPersistentInstance.open(namespace, config.embedder, backend, "file", config.onWarn);
     }
     default: {
       const exhaustive: never = config.store;

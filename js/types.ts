@@ -16,7 +16,8 @@ export type ErrorCode =
   | "SchemaTooNew"        // persisted schemaVersion exceeds library support
   | "SchemaTooOld"        // persisted schemaVersion has no migration path
   | "NamespaceLocked"     // another tab/context holds the namespace lock
-  | "NotFound";           // requested id does not exist in the store
+  | "NotFound"            // requested id does not exist in the store
+  | "StoreUnavailable";   // store path is not accessible (file store write failure)
 
 /** Warning codes emitted via CreateConfig.onWarn. */
 export type WarnCode =
@@ -27,7 +28,7 @@ export type WarnCode =
 // ────────────────────────────────────────────────────────────────────────────
 // Store configs
 
-export type StoreMode = "memory" | "opfs" | "indexeddb";
+export type StoreMode = "memory" | "opfs" | "indexeddb" | "file";
 
 export interface MemoryStoreConfig {
   readonly type: "memory";
@@ -51,6 +52,17 @@ export interface OpfsStoreConfig {
   readonly _simulateOpfsFailure?: boolean;
   /** @internal — backend to use when OPFS is unavailable (or simulated as such). Tests only. */
   readonly _fallbackBackend?: FileBackend;
+}
+
+/**
+ * File store config — persists corpus data in a local filesystem directory.
+ * Node.js environments only; throws InvalidConfig immediately in browsers.
+ * Written files are byte-identical to stores.opfs() output for the same data.
+ */
+export interface FileStoreConfig {
+  readonly type: "file";
+  /** Absolute or relative path to the root directory. Files are written to {dirPath}/tragar/{namespace}/. */
+  readonly dirPath: string;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -118,8 +130,8 @@ export interface Stats {
 // Create config
 
 export interface CreateConfig {
-  /** Backing store. Use stores.memory() for tests; stores.opfs() for persistence. */
-  store: MemoryStoreConfig | OpfsStoreConfig;
+  /** Backing store. Use stores.memory() for tests; stores.opfs() for browser persistence; stores.file() for Node.js build-time use. */
+  store: MemoryStoreConfig | OpfsStoreConfig | FileStoreConfig;
   /**
    * Embedder. Required for ingest() and query().
    * - embedders.custom() — deterministic, no network (tests and dev)
