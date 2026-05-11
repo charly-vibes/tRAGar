@@ -87,6 +87,86 @@ function dotProduct(a: Float32Array, b: Float32Array): number {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Base64 + zip helpers for export()
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let str = "";
+  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i]);
+  return btoa(str);
+}
+
+function makeCrc32Table(): Uint32Array {
+  const t = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    t[i] = c;
+  }
+  return t;
+}
+const CRC32_TABLE = makeCrc32Table();
+
+function crc32(data: Uint8Array): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < data.length; i++)
+    crc = CRC32_TABLE[(crc ^ data[i]) & 0xff]! ^ (crc >>> 8);
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildStoreZip(entries: { name: string; data: Uint8Array }[]): Uint8Array<ArrayBuffer> {
+  const enc = new TextEncoder();
+  const localBlocks: Uint8Array[] = [];
+  const centralHeaders: Uint8Array[] = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBytes = enc.encode(entry.name);
+    const checksum = crc32(entry.data);
+    const size = entry.data.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);
+    lv.setUint32(14, checksum, true);
+    lv.setUint32(18, size, true);
+    lv.setUint32(22, size, true);
+    lv.setUint16(26, nameBytes.length, true);
+    local.set(nameBytes, 30);
+    localBlocks.push(local, entry.data);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);
+    cv.setUint32(16, checksum, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint32(42, offset, true);
+    central.set(nameBytes, 46);
+    centralHeaders.push(central);
+
+    offset += 30 + nameBytes.length + size;
+  }
+
+  const centralSize = centralHeaders.reduce((s, h) => s + h.length, 0);
+  const eocd = new Uint8Array(22);
+  const ev = new DataView(eocd.buffer);
+  ev.setUint32(0, 0x06054b50, true);
+  ev.setUint16(8, entries.length, true);
+  ev.setUint16(10, entries.length, true);
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);
+
+  const total = offset + centralSize + 22;
+  const result = new Uint8Array(total);
+  let pos = 0;
+  for (const block of localBlocks) { result.set(block, pos); pos += block.length; }
+  for (const h of centralHeaders) { result.set(h, pos); pos += h.length; }
+  result.set(eocd, pos);
+  return result;
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Stored chunk record
 
 interface StoredChunk {
@@ -108,15 +188,19 @@ class TRAGarMemoryInstance implements TRAGarInstance {
   #closed = false;
   #chunks: StoredChunk[] = [];
   #embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined;
+  #onWarn: CreateConfig["onWarn"];
+  #dequantWarnFired = false;
 
   constructor(
     namespace: string,
     embedder?: CustomEmbedderConfig | TransformersEmbedderConfig,
+    onWarn?: CreateConfig["onWarn"],
   ) {
     this.namespace = namespace;
     this.modelId = embedder?.modelId ?? "";
     this.dim = embedder?.dim ?? 0;
     this.#embedder = embedder;
+    this.#onWarn = onWarn;
   }
 
   get count(): number {
@@ -215,6 +299,68 @@ class TRAGarMemoryInstance implements TRAGarInstance {
     };
   }
 
+  #fireDequeueWarn(): void {
+    if (!this.#dequantWarnFired) {
+      this.#dequantWarnFired = true;
+      this.#onWarn?.(
+        "DequantizationRequested",
+        `Returning float32 vectors (${this.#chunks.length} total); float32 is the native store format in this slice.`,
+      );
+    }
+  }
+
+  async getVector(id: string): Promise<Float32Array> {
+    this.#assertOpen();
+    const chunk = this.#chunks.find((c) => c.id === id);
+    if (!chunk) throw new TRAGarError("NotFound", `No chunk with id "${id}".`);
+    this.#fireDequeueWarn();
+    return new Float32Array(chunk.vector);
+  }
+
+  async getAllVectors(): Promise<{ id: string; v: Float32Array }[]> {
+    this.#assertOpen();
+    this.#fireDequeueWarn();
+    return this.#chunks.map((c) => ({ id: c.id, v: new Float32Array(c.vector) }));
+  }
+
+  async export(format: "json" | "binary"): Promise<Blob> {
+    this.#assertOpen();
+    const enc = new TextEncoder();
+    const meta = {
+      schemaVersion: 1,
+      namespace: this.namespace,
+      modelId: this.modelId,
+      dim: this.dim,
+      count: this.#chunks.length,
+      rawCount: this.#chunks.length,
+    };
+
+    if (format === "json") {
+      const dim = this.dim || (this.#chunks[0]?.vector.length ?? 0);
+      const vectorData = new Float32Array(this.#chunks.length * dim);
+      for (let i = 0; i < this.#chunks.length; i++) {
+        vectorData.set(this.#chunks[i]!.vector, i * dim);
+      }
+      const body = JSON.stringify({
+        meta,
+        chunks: this.#chunks.map((c) => ({ id: c.id, text: c.text, source: c.source })),
+        vectors_b64: uint8ToBase64(new Uint8Array(vectorData.buffer)),
+      });
+      return new Blob([body], { type: "application/json" });
+    }
+
+    const metaBytes = enc.encode(JSON.stringify(meta));
+    const chunksLines = this.#chunks
+      .map((c) =>
+        JSON.stringify({ id: c.id, text: c.text, source: c.source, vector: Array.from(c.vector) }),
+      )
+      .join("\n");
+    return new Blob(
+      [buildStoreZip([{ name: "meta.json", data: metaBytes }, { name: "chunks.jsonl", data: enc.encode(chunksLines) }])],
+      { type: "application/zip" },
+    );
+  }
+
   async close(): Promise<void> {
     if (this.#closed) {
       throw new TRAGarError("InstanceClosed", "This TRAGar instance has already been closed.");
@@ -256,12 +402,15 @@ class TRAGarPersistentInstance implements TRAGarInstance {
   #embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined;
   #backend: FileBackend;
   #createdAt: string = new Date().toISOString();
+  #onWarn: CreateConfig["onWarn"];
+  #dequantWarnFired = false;
 
   private constructor(
     namespace: string,
     embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined,
     backend: FileBackend,
     storeMode: StoreMode,
+    onWarn?: CreateConfig["onWarn"],
   ) {
     this.namespace = namespace;
     this.modelId = embedder?.modelId ?? "";
@@ -269,6 +418,7 @@ class TRAGarPersistentInstance implements TRAGarInstance {
     this.#embedder = embedder;
     this.#backend = backend;
     this.storeMode = storeMode;
+    this.#onWarn = onWarn;
   }
 
   static async open(
@@ -276,8 +426,9 @@ class TRAGarPersistentInstance implements TRAGarInstance {
     embedder: CustomEmbedderConfig | TransformersEmbedderConfig | undefined,
     backend: FileBackend,
     storeMode: StoreMode,
+    onWarn?: CreateConfig["onWarn"],
   ): Promise<TRAGarPersistentInstance> {
-    const inst = new TRAGarPersistentInstance(namespace, embedder, backend, storeMode);
+    const inst = new TRAGarPersistentInstance(namespace, embedder, backend, storeMode, onWarn);
     await inst.#loadFromStore();
     return inst;
   }
@@ -460,6 +611,68 @@ class TRAGarPersistentInstance implements TRAGarInstance {
     };
   }
 
+  #fireDequeueWarn(): void {
+    if (!this.#dequantWarnFired) {
+      this.#dequantWarnFired = true;
+      this.#onWarn?.(
+        "DequantizationRequested",
+        `Returning float32 vectors (${this.#chunks.length} total); float32 is the native store format in this slice.`,
+      );
+    }
+  }
+
+  async getVector(id: string): Promise<Float32Array> {
+    this.#assertOpen();
+    const chunk = this.#chunks.find((c) => c.id === id);
+    if (!chunk) throw new TRAGarError("NotFound", `No chunk with id "${id}".`);
+    this.#fireDequeueWarn();
+    return new Float32Array(chunk.vector);
+  }
+
+  async getAllVectors(): Promise<{ id: string; v: Float32Array }[]> {
+    this.#assertOpen();
+    this.#fireDequeueWarn();
+    return this.#chunks.map((c) => ({ id: c.id, v: new Float32Array(c.vector) }));
+  }
+
+  async export(format: "json" | "binary"): Promise<Blob> {
+    this.#assertOpen();
+    const enc = new TextEncoder();
+    const meta = {
+      schemaVersion: 1,
+      namespace: this.namespace,
+      modelId: this.modelId,
+      dim: this.dim,
+      count: this.#chunks.length,
+      rawCount: this.#chunks.length,
+    };
+
+    if (format === "json") {
+      const dim = this.dim || (this.#chunks[0]?.vector.length ?? 0);
+      const vectorData = new Float32Array(this.#chunks.length * dim);
+      for (let i = 0; i < this.#chunks.length; i++) {
+        vectorData.set(this.#chunks[i]!.vector, i * dim);
+      }
+      const body = JSON.stringify({
+        meta,
+        chunks: this.#chunks.map((c) => ({ id: c.id, text: c.text, source: c.source })),
+        vectors_b64: uint8ToBase64(new Uint8Array(vectorData.buffer)),
+      });
+      return new Blob([body], { type: "application/json" });
+    }
+
+    const metaBytes = enc.encode(JSON.stringify(meta));
+    const chunksLines = this.#chunks
+      .map((c) =>
+        JSON.stringify({ id: c.id, text: c.text, source: c.source, vector: Array.from(c.vector) }),
+      )
+      .join("\n");
+    return new Blob(
+      [buildStoreZip([{ name: "meta.json", data: metaBytes }, { name: "chunks.jsonl", data: enc.encode(chunksLines) }])],
+      { type: "application/zip" },
+    );
+  }
+
   async close(): Promise<void> {
     if (this.#closed) {
       throw new TRAGarError("InstanceClosed", "This TRAGar instance has already been closed.");
@@ -537,14 +750,14 @@ async function create(config: CreateConfig): Promise<TRAGarInstance> {
 
   switch (config.store.type) {
     case "memory":
-      return new TRAGarMemoryInstance(namespace, config.embedder);
+      return new TRAGarMemoryInstance(namespace, config.embedder, config.onWarn);
     case "opfs": {
       const { backend, storeMode } = await openPersistentBackend(
         namespace,
         config.store,
         config.onWarn,
       );
-      return TRAGarPersistentInstance.open(namespace, config.embedder, backend, storeMode);
+      return TRAGarPersistentInstance.open(namespace, config.embedder, backend, storeMode, config.onWarn);
     }
     default: {
       const exhaustive: never = config.store;

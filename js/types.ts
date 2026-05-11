@@ -15,12 +15,14 @@ export type ErrorCode =
   | "EmbedderLoadFailed"  // transformers.js model or module failed to load
   | "SchemaTooNew"        // persisted schemaVersion exceeds library support
   | "SchemaTooOld"        // persisted schemaVersion has no migration path
-  | "NamespaceLocked";    // another tab/context holds the namespace lock
+  | "NamespaceLocked"     // another tab/context holds the namespace lock
+  | "NotFound";           // requested id does not exist in the store
 
 /** Warning codes emitted via CreateConfig.onWarn. */
 export type WarnCode =
-  | "StoreFallback"  // OPFS unavailable; fell back to IndexedDB
-  | "NamespaceLocked"; // namespace lock could not be acquired (soft warning)
+  | "StoreFallback"            // OPFS unavailable; fell back to IndexedDB
+  | "NamespaceLocked"          // namespace lock could not be acquired (soft warning)
+  | "DequantizationRequested"; // caller requested raw float32 vectors
 
 // ────────────────────────────────────────────────────────────────────────────
 // Store configs
@@ -181,4 +183,24 @@ export interface TRAGarInstance {
    * Resolves on success; rejects with TRAGarError("InstanceClosed") if already closed.
    */
   close(): Promise<void>;
+
+  /**
+   * Return the stored float32 vector for the given chunk id.
+   * Rejects with TRAGarError("NotFound") if the id is unknown.
+   * Fires a DequantizationRequested warning once per instance lifetime via onWarn.
+   */
+  getVector(id: string): Promise<Float32Array>;
+
+  /**
+   * Return all stored vectors as a snapshot array.
+   * Fires a DequantizationRequested warning once per instance lifetime via onWarn.
+   */
+  getAllVectors(): Promise<{ id: string; v: Float32Array }[]>;
+
+  /**
+   * Export the corpus as a Blob.
+   * - 'json': { meta, chunks, vectors_b64 } — human-readable
+   * - 'binary': STORE-method zip of meta.json + chunks.jsonl
+   */
+  export(format: "json" | "binary"): Promise<Blob>;
 }
