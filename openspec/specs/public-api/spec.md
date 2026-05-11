@@ -64,6 +64,10 @@ The instance SHALL provide `query(text, opts?)` returning `Promise<Hit[]>` and `
 - **WHEN** `queryStream(text)` is iterated with `for await`
 - **THEN** hits are yielded one by one in descending score order
 
+> **Rerank ordering guarantee**: When a reranker is configured, all top-K hits are collected and fully reranked before the first hit is yielded. The `AsyncIterable<Hit>` contract therefore guarantees strict descending-score order at the cost of additional latency before the first result. This rerank-all-then-yield semantics is the only supported behaviour in v0.1.
+>
+> **Forward compatibility (v0.3)**: A future `Reranker.supportsStreaming?: boolean` hint and a `QueryOptions.streamingRerank?: boolean` opt-in may be introduced in v0.3 to allow interleaved (lower-latency) reranking. Callers that require stable ordering MUST NOT pass `streamingRerank: true`. The v0.1 `Reranker` seam interface (`rerank(query, hits: Hit[]): Promise<Hit[]>`) is a batch-only contract and is forward-compatible with either approach.
+
 #### Scenario: Abandoned queryStream releases C++ resources
 - **WHEN** a `for await` loop over `queryStream()` is exited early via `break` or a thrown exception
 - **THEN** the Embind async iterator wrapper calls the underlying `std::generator<Hit>` destructor via the iterator's `return()` method, releasing all C++ resources without a leak
