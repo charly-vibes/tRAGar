@@ -1,0 +1,9 @@
+pre-commit:
+  commands:
+    ts-check:
+      run: just ts-check
+
+pre-push:
+  commands:
+    test-js:
+      run: just test-js
