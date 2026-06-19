@@ -40,6 +40,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          cp llms.txt _site/
           cp -r examples _site/
           cp -r dist _site/
           cp -r docs _site/
