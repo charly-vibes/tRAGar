@@ -17,6 +17,10 @@ build:
 test:
     ctest --test-dir build/debug --output-on-failure
 
+# Validate spec-test correspondence (requires ah)
+validate:
+    ah check
+
 # Configure WASM build
 configure-wasm:
     emcmake cmake --preset wasm
